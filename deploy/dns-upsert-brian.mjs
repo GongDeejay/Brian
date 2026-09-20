@@ -102,6 +102,10 @@ async function callApi(action, params = {}) {
   const body = json.Response;
   if (!body) throw new Error(`${action} 响应缺少 Response 字段：${text.slice(0, 300)}`);
   if (body.Error) {
+    // “记录列表为空”不是失败：它恰恰表示“该子域还没有记录”，应继续走创建分支。
+    if (body.Error.Code === 'ResourceNotFound.NoDataOfRecord') {
+      return { RecordList: [] };
+    }
     throw new Error(`${action} 失败：${body.Error.Code} - ${body.Error.Message}`);
   }
   return body;
