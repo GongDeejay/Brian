@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #1e293b;
+    background-color: #f8fafc;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+}
+
+/* Custom scrollbars for data panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ------------------------------------------------------------------
+   Local replacements for the uninstalled `tailwindcss-animate` and
+   `tailwind-scrollbar` plugins. These are plain CSS so they work with
+   Tailwind v4 without any extra dependency.
+   ------------------------------------------------------------------ */
+
+/* Horizontal tab strip that must not show a scrollbar */
+.scrollbar-none {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* IE / legacy Edge */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;              /* Chromium / WebKit */
+  width: 0;
+  height: 0;
+}
+
+/* Modal entrance (replaces animate-in fade-in zoom-in-95) */
+@keyframes nc-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes nc-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Toast entrance (replaces the removed rule-shift animate-bounce) */
+@keyframes nc-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-modal-in {
+  animation: nc-modal-in 200ms ease-out both;
+}
+.animate-fade-in {
+  animation: nc-fade-in 160ms ease-out both;
+}
+.animate-rise-in {
+  animation: nc-rise-in 200ms ease-out both;
+}
+
+/* Accessibility: honour the OS "reduce motion" setting for every
+   animation/transition this app defines, including Tailwind utilities. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-in,
+  .animate-fade-in,
+  .animate-rise-in {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

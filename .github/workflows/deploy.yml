@@ -1,0 +1,93 @@
+name: Deploy to brian.mplusm.site
+
+# 推送到 main 即自动构建两个平台并发布；
+# 也可以在 Actions 页面手动触发（workflow_dispatch）。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一时间只允许一个发布任务，避免并发 rsync 互相覆盖。
+concurrency:
+  group: deploy-brian-site
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            wm/package-lock.json
+            neuro/package-lock.json
+
+      - name: Build 工作记忆训练与评估平台
+        working-directory: wm
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Build NeuroClassify 分类与模式识别平台
+        working-directory: neuro
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          rm -rf site
+          mkdir -p site/wm site/neuro
+          cp index.html site/index.html
+          cp -R wm/dist/. site/wm/
+          cp -R neuro/dist/. site/neuro/
+          # 保留一份构建溯源信息，方便确认线上跑的是哪个提交。
+          cat > site/BUILD_INFO.json <<EOF
+          {
+            "commit": "${GITHUB_SHA}",
+            "ref": "${GITHUB_REF_NAME}",
+            "run": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}",
+            "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          echo "--- assembled site ---"
+          find site -maxdepth 2 -type f | sort | head -50
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy with rsync
+        run: |
+          set -euo pipefail
+          rsync -az --delete --mkpath \
+            --no-perms --omit-dir-times \
+            --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+            -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes" \
+            site/ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/brian.mplusm.site/"
+
+      # 发布后自检：只报告状态码，不因为 DNS/证书尚未就绪而把构建标记为失败。
+      - name: Verify the live site
+        run: |
+          set -uo pipefail
+          base="https://brian.mplusm.site"
+          echo "自检 $base"
+          for path in / /wm/ /neuro/; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${base}${path}" || echo "ERR")
+            echo "  ${path} -> ${code}"
+          done
+          echo "（非 200 时请检查 deploy/SETUP.md 中的 DNS 与 nginx 步骤）"

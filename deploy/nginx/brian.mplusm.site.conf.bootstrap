@@ -1,0 +1,35 @@
+# =====================================================
+# brian.mplusm.site — 【首次申请证书专用】引导配置
+#
+# 用途：Let's Encrypt 签发证书之前临时启用。
+# 此时 /etc/letsencrypt/live/brian.mplusm.site/ 还不存在，
+# 直接使用正式配置会让 nginx 启动失败。
+#
+# 用法（仅首次）：
+#   cp deploy/nginx/brian.mplusm.site.conf.bootstrap \
+#      /www/server/panel/vhost/nginx/brian.mplusm.site.conf
+#   nginx -t && nginx -s reload
+#   certbot certonly --webroot -w /var/www/certbot -d brian.mplusm.site ...
+#
+# 证书签发成功后，用正式配置覆盖回来：
+#   cp deploy/nginx/brian.mplusm.site.conf \
+#      /www/server/panel/vhost/nginx/brian.mplusm.site.conf
+#   nginx -t && nginx -s reload
+# =====================================================
+
+server {
+    listen 80;
+    server_name brian.mplusm.site;
+
+    # ACME HTTP-01 校验路径，必须放在最前面
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+    }
+
+    # 证书签发完成前，其余请求给一个明确的提示而不是 301 到不可用的 https
+    location / {
+        root /var/www/brian.mplusm.site;
+        try_files $uri $uri/ /index.html;
+    }
+}

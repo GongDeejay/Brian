@@ -1,0 +1,6 @@
+{
+  "name": "NeuroClassify - 认知神经科学分类与模式识别测验平台",
+  "description": "基于经典认知神经科学文献的高标准认知功能评估与分类训练系统，包含威斯康星卡片分类(WCST)、天气预测任务(WPT)、注意定势转移(ID/ED)、信息整合(II/RB)与原型畸变测验，支持实时认知负荷调节与模式识别量化评估。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brian · 认知神经科学实验平台</title>
+    <meta
+      name="description"
+      content="Brian 认知神经科学实验平台：包含工作记忆训练与评估（N-back / OSPAN / 变化检测 K 值）与 NeuroClassify 分类与模式识别测验（WCST / WPT / ID-ED / 原型畸变 / Gabor）。"
+    />
+    <meta name="theme-color" content="#020617" />
+    <meta property="og:title" content="Brian · 认知神经科学实验平台" />
+    <meta
+      property="og:description"
+      content="两个可在浏览器中直接运行的认知神经科学实验平台：工作记忆训练与评估、分类与模式识别测验。"
+    />
+    <meta property="og:type" content="website" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M11 22V10h5.2c2.3 0 3.6 1.1 3.6 2.9 0 1.2-.7 2.1-1.8 2.5 1.4.3 2.3 1.4 2.3 2.9 0 2-1.5 3.7-4.1 3.7H11zm3-7.1h1.9c.8 0 1.3-.4 1.3-1.1s-.5-1.1-1.3-1.1H14v2.2zm0 4.6h2.1c.9 0 1.4-.5 1.4-1.2s-.5-1.2-1.4-1.2H14v2.4z' fill='white'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #020617;
+        --panel: #0f172a;
+        --panel-hover: #16203a;
+        --border: #1e293b;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --faint: #64748b;
+        --indigo: #6366f1;
+        --cyan: #22d3ee;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Helvetica Neue",
+          Arial, sans-serif;
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      /* Ambient background glow — purely decorative, no external assets. */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(46rem 46rem at 12% -8%, rgba(99, 102, 241, 0.18), transparent 62%),
+          radial-gradient(38rem 38rem at 92% 8%, rgba(34, 211, 238, 0.12), transparent 60%);
+        z-index: 0;
+      }
+
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: clamp(2.5rem, 7vw, 5.5rem) clamp(1.15rem, 4vw, 2.5rem) 3rem;
+      }
+
+      header {
+        margin-bottom: clamp(2.25rem, 5vw, 3.5rem);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--cyan);
+        border: 1px solid rgba(34, 211, 238, 0.28);
+        background: rgba(34, 211, 238, 0.07);
+        border-radius: 999px;
+        padding: 0.32rem 0.85rem;
+        margin-bottom: 1.4rem;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--cyan);
+      }
+
+      h1 {
+        margin: 0 0 1rem;
+        font-size: clamp(2rem, 6vw, 3.1rem);
+        line-height: 1.16;
+        letter-spacing: -0.02em;
+        font-weight: 700;
+      }
+
+      h1 .grad {
+        background: linear-gradient(100deg, #818cf8 0%, #22d3ee 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+      }
+
+      .lede {
+        margin: 0;
+        max-width: 62ch;
+        color: var(--muted);
+        font-size: clamp(0.95rem, 2.1vw, 1.06rem);
+      }
+
+      .lede strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .grid {
+        display: grid;
+        gap: clamp(1rem, 2.6vw, 1.5rem);
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+      }
+
+      .card {
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(180deg, var(--panel) 0%, #0b1222 100%);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: clamp(1.35rem, 3vw, 1.9rem);
+        text-decoration: none;
+        color: inherit;
+        transition: border-color 0.22s ease, transform 0.22s ease, background 0.22s ease;
+      }
+
+      .card:hover,
+      .card:focus-visible {
+        border-color: rgba(99, 102, 241, 0.55);
+        background: linear-gradient(180deg, var(--panel-hover) 0%, #0d1526 100%);
+        transform: translateY(-3px);
+      }
+
+      .card:focus-visible {
+        outline: 2px solid var(--indigo);
+        outline-offset: 3px;
+      }
+
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 2px;
+        background: linear-gradient(90deg, var(--indigo), var(--cyan));
+        opacity: 0;
+        transition: opacity 0.22s ease;
+      }
+
+      .card:hover::after,
+      .card:focus-visible::after {
+        opacity: 1;
+      }
+
+      .icon {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        border-radius: 13px;
+        margin-bottom: 1.1rem;
+        background: rgba(99, 102, 241, 0.14);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        color: #a5b4fc;
+      }
+
+      .card.neuro .icon {
+        background: rgba(34, 211, 238, 0.12);
+        border-color: rgba(34, 211, 238, 0.3);
+        color: var(--cyan);
+      }
+
+      .card h2 {
+        margin: 0 0 0.55rem;
+        font-size: 1.22rem;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+
+      .card p {
+        margin: 0 0 1.15rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: 0 0 1.4rem;
+        padding: 0;
+        list-style: none;
+      }
+
+      .tags li {
+        font-size: 0.74rem;
+        font-weight: 500;
+        color: #cbd5e1;
+        background: rgba(148, 163, 184, 0.12);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 6px;
+        padding: 0.18rem 0.5rem;
+        white-space: nowrap;
+      }
+
+      .go {
+        margin-top: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #a5b4fc;
+      }
+
+      .card.neuro .go {
+        color: var(--cyan);
+      }
+
+      .go svg {
+        transition: transform 0.22s ease;
+      }
+
+      .card:hover .go svg,
+      .card:focus-visible .go svg {
+        transform: translateX(4px);
+      }
+
+      .note {
+        margin-top: clamp(2rem, 5vw, 3rem);
+        padding: 1.05rem 1.25rem;
+        border: 1px solid var(--border);
+        border-left: 3px solid #f59e0b;
+        border-radius: 10px;
+        background: rgba(245, 158, 11, 0.06);
+        color: var(--muted);
+        font-size: 0.875rem;
+      }
+
+      .note strong {
+        color: #fbbf24;
+        font-weight: 600;
+      }
+
+      footer {
+        margin-top: clamp(2.25rem, 5vw, 3.25rem);
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.5rem;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--faint);
+        font-size: 0.82rem;
+      }
+
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+        transition: color 0.2s ease, border-color 0.2s ease;
+      }
+
+      footer a:hover,
+      footer a:focus-visible {
+        color: #a5b4fc;
+        border-bottom-color: currentColor;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.001ms !important;
+        }
+        .card:hover,
+        .card:focus-visible {
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span class="eyebrow">Cognitive Neuroscience</span>
+        <h1>Brian <span class="grad">认知神经科学实验平台</span></h1>
+        <p class="lede">
+          两个完全在浏览器中运行的认知任务平台。基于经典实验范式实现，
+          <strong>无需安装、无需注册</strong>，打开即可开始测评；所有数据仅保存在本机浏览器中，不会上传。
+        </p>
+      </header>
+
+      <main class="grid">
+        <a class="card" href="./wm/">
+          <span class="icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+              <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+            </svg>
+          </span>
+          <h2>工作记忆训练与评估平台</h2>
+          <p>
+            从更新、存储容量与注意控制三个成分评估工作记忆，生成五维认知画像与综合指数，
+            并保留历史记录用于观察训练变化趋势。
+          </p>
+          <ul class="tags">
+            <li>N-back</li>
+            <li>OSPAN 复杂运算跨度</li>
+            <li>变化检测 · Cowan's K</li>
+            <li>d′ 信号检测论</li>
+            <li>认知画像</li>
+          </ul>
+          <span class="go">
+            进入平台
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+        </a>
+
+        <a class="card neuro" href="./neuro/">
+          <span class="icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+              <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+              <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+              <path d="M17.25 13.5v7.5M13.5 17.25h7.5" />
+            </svg>
+          </span>
+          <h2>NeuroClassify 分类与模式识别</h2>
+          <p>
+            围绕分类学习、规则发现与认知灵活性的一组测验，覆盖额叶执行功能的不同侧面，
+            并提供可调的认知负荷控制与结果分析看板。
+          </p>
+          <ul class="tags">
+            <li>WCST 卡片分类</li>
+            <li>ID/ED 定势转移</li>
+            <li>WPT 概率分类</li>
+            <li>原型畸变迁移</li>
+            <li>Gabor RB / II</li>
+          </ul>
+          <span class="go">
+            进入平台
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+        </a>
+      </main>
+
+      <p class="note">
+        <strong>使用须知：</strong>本平台用于教学演示、自我训练与科普体验。
+        任务范式参考公开文献实现，但尚未经过标准化常模校验，
+        <strong>结果不构成任何医学诊断或临床结论</strong>。如有认知健康方面的疑虑，请咨询专业医疗机构。
+      </p>
+
+      <footer>
+        <span>Brian 认知神经科学实验平台</span>
+        <span>
+          <a href="https://github.com/GongDeejay/Brian" rel="noopener">GitHub 源码</a>
+        </span>
+      </footer>
+    </div>
+  </body>
+</html>

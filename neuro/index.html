@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NeuroClassify · 认知神经科学分类与模式识别测验平台</title>
+    <meta
+      name="description"
+      content="参考经典认知神经科学范式实现的认知功能测验与分类训练系统，包含威斯康星卡片分类(WCST)、天气预测任务(WPT)、注意定势转移(ID/ED)、原型畸变迁移与 Gabor 信息整合任务，支持可调认知负荷与结果分析。"
+    />
+    <meta name="theme-color" content="#020617" />
+    <meta property="og:title" content="NeuroClassify · 认知神经科学分类与模式识别测验平台" />
+    <meta
+      property="og:description"
+      content="参考经典认知神经科学范式实现的认知功能测验与分类训练系统，包含 WCST、WPT、ID/ED、原型畸变迁移与 Gabor 信息整合任务。"
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2306b6d4'/%3E%3Cg fill='none' stroke='white' stroke-width='2.4'%3E%3Crect x='6' y='6' width='8' height='8' rx='1.6'/%3E%3Crect x='18' y='6' width='8' height='8' rx='1.6'/%3E%3Crect x='6' y='18' width='8' height='8' rx='1.6'/%3E%3Cpath d='M22 18v8M18 22h8'/%3E%3C/g%3E%3C/svg%3E"
+    />
+    <!--
+      Web fonts are loaded asynchronously (media="print" swap) so that a slow or
+      unreachable fonts.googleapis.com never blocks first paint. Users on
+      networks where Google Fonts is unavailable simply get the system fallback
+      stack defined in src/index.css.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap"
+      />
+    </noscript>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

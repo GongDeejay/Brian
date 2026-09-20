@@ -1,0 +1,6 @@
+{
+  "name": "工作记忆训练与评估平台",
+  "description": "集成了N-back、复杂运算跨度(OSPAN)与视觉变化检测(K值评估)的认知神经科学工作记忆训练与评估平台。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

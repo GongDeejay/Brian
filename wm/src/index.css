@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind v4 theme: wire the font families that index.html downloads
+ * (Plus Jakarta Sans / Noto Sans SC / JetBrains Mono) to the `font-sans` and
+ * `font-mono` utilities. Without this block the fonts were fetched and then
+ * completely ignored by every `font-sans` / `font-mono` class.
+ */
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Noto Sans SC", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/*
+ * Motion comfort: honour the operating-system "reduce motion" preference.
+ * Unlayered on purpose — these rules must win over Tailwind's layered
+ * utilities (`animate-pulse`, transitions on the radar chart, etc.).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    touch-action: manipulation;
+  }
+}
+
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /*
+   * Interaction surface for task/response areas: no double-tap zoom (which could
+   * register a duplicate trial on mobile) and no accidental text selection while
+   * tapping rapidly.
+   */
+  .task-surface {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Hide scrollbar for clean tab rails */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

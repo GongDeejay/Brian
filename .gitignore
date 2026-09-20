@@ -1,0 +1,29 @@
+# ---- dependencies ----
+node_modules/
+.pnpm-store/
+
+# ---- build output ----
+dist/
+build/
+
+# ---- local env & secrets (never commit) ----
+.env
+.env.*
+!.env.example
+
+# ---- tooling caches ----
+.npm-cache/
+.vite/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# ---- OS / editor noise ----
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-error.log*
+.idea/
+.vscode/
+*.swp
