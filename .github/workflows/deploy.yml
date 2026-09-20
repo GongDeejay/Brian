@@ -83,30 +83,53 @@ jobs:
             site/ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/brian.mplusm.site/"
 
       # 发布后自检。
-      # DNS 尚未生效时只提示（首次搭建阶段属正常）；一旦域名能解析，
-      # 任何非 200 都会让这次发布失败，避免坏版本静默上线。
+      # 网络层未就绪（DNS 未解析 / 443 证书还没签发）时只警告，
+      # 因为那属于首次搭建的正常中间状态；
+      # 一旦能收到 HTTP 响应，任何非 200 都判定发布失败，避免坏版本静默上线。
       - name: Verify the live site
         run: |
           set -uo pipefail
           host="brian.mplusm.site"
           base="https://${host}"
 
-          if ! getent hosts "$host" >/dev/null 2>&1; then
-            echo "::notice::$host 尚未解析（DNS 未配置），跳过线上自检。"
-            echo "部署已完成，域名生效后请重新运行本工作流或再次 push。"
-            exit 0
-          fi
-
-          echo "自检 $base"
           failed=0
+          not_ready=0
+
           for path in / /wm/ /neuro/; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${base}${path}" || echo "000")
+            url="${base}${path}"
+            err=$(mktemp)
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$url" 2>"$err")
+            rc=$?
+
+            if [ "$rc" -ne 0 ]; then
+              case "$rc" in
+                6|7|35|60)
+                  # 6=域名无法解析 7=连接被拒 35=TLS 握手失败 60=证书无效
+                  echo "  ${path} -> 未就绪 (curl exit ${rc})"
+                  not_ready=1
+                  ;;
+                *)
+                  echo "  ${path} -> 请求失败 (curl exit ${rc}): $(head -1 "$err")"
+                  failed=1
+                  ;;
+              esac
+              rm -f "$err"
+              continue
+            fi
+
+            rm -f "$err"
             echo "  ${path} -> ${code}"
             [ "$code" = "200" ] || failed=1
           done
 
           if [ "$failed" -ne 0 ]; then
-            echo "::error::线上自检失败：至少一个路径未返回 200。请检查 nginx 配置与证书（见 deploy/SETUP.md）。"
+            echo "::error::线上自检失败：站点已能响应，但至少一个路径未返回 200。请检查 nginx 配置与部署产物（见 deploy/SETUP.md）。"
             exit 1
           fi
+
+          if [ "$not_ready" -ne 0 ]; then
+            echo "::notice::产物已发布，但 ${host} 的网络层尚未就绪（DNS 未生效或 HTTPS 证书未签发）。完成 deploy/SETUP.md 第 1、4 步后，重新运行本工作流即可看到完整自检。"
+            exit 0
+          fi
+
           echo "✓ 线上自检通过"
