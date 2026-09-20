@@ -98,8 +98,11 @@ jobs:
           for path in / /wm/ /neuro/; do
             url="${base}${path}"
             err=$(mktemp)
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$url" 2>"$err")
-            rc=$?
+            # NOTE: the runner invokes bash with -e, so a bare failing command
+            # substitution would abort the script before we can inspect the exit
+            # code. `|| rc=$?` keeps the failure inside a || list so it is caught.
+            rc=0
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$url" 2>"$err") || rc=$?
 
             if [ "$rc" -ne 0 ]; then
               case "$rc" in
