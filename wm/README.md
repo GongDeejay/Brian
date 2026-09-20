@@ -36,15 +36,6 @@ npm run typecheck    # tsc --noEmit
 > ⚠️ 本应用部署在子路径 `/wm/` 下，`vite.config.ts` 里的 `base: '/wm/'` 必须与
 > 实际部署路径一致，否则资源会 404、页面白屏。改变部署路径时务必同步修改。
 
-## 打包源码分发
-
-页脚提供「下载源码」入口，对应的 zip 由以下命令生成（会自动排除
-`node_modules` / `dist` / `.git` / **所有 `.env*` 文件**）：
-
-```bash
-npm run package:zip  # 输出 public/working-memory-training.zip
-```
-
 ## 数据与隐私
 
 所有测评数据只写入浏览器 `localStorage`（键名 `wm_cognitive_platform_data_v1`），

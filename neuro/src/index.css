@@ -7,6 +7,10 @@
     background-color: #f8fafc;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Prevent double-tap zoom on touch devices: a fast double tap on a response
+       button could otherwise register a duplicate trial. */
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
   }
 
   code, pre, .font-mono {

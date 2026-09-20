@@ -16,11 +16,7 @@ import { NBackTask } from './components/NBackTask';
 import { OSPANTask } from './components/OSPANTask';
 import { ChangeDetectionTask } from './components/ChangeDetectionTask';
 import { CognitiveDashboard } from './components/CognitiveDashboard';
-import { BookOpen, Brain, Download, RotateCcw, TriangleAlert, X } from 'lucide-react';
-
-// The app is deployed under a sub-path (https://brian.mplusm.site/wm/), so asset
-// references must be resolved against Vite's base URL instead of the domain root.
-const ZIP_URL = `${import.meta.env.BASE_URL}working-memory-training.zip`;
+import { BookOpen, Brain, Home, RotateCcw, TriangleAlert, X } from 'lucide-react';
 
 /** How long the "撤销清除" window stays open. */
 const UNDO_WINDOW_MS = 7000;
@@ -173,14 +169,13 @@ export default function App() {
           </div>
           <div className="flex items-center gap-4">
             <a
-              id="btn-footer-download-zip"
-              href={ZIP_URL}
-              download="working-memory-training.zip"
-              className="text-[11px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 flex items-center gap-1 cursor-pointer"
-              title="下载项目完整源码 ZIP"
+              id="btn-footer-back-home"
+              href="../"
+              className="text-[11px] text-slate-400 hover:text-slate-200 underline underline-offset-2 flex items-center gap-1 cursor-pointer"
+              title="返回首页"
             >
-              <Download className="w-3 h-3" aria-hidden="true" />
-              <span>下载项目源码 (ZIP)</span>
+              <Home className="w-3 h-3" aria-hidden="true" />
+              <span>返回首页</span>
             </a>
             <button
               id="btn-footer-theory"
