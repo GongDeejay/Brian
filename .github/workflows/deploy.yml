@@ -20,12 +20,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: |
             wm/package-lock.json
@@ -35,12 +35,14 @@ jobs:
         working-directory: wm
         run: |
           npm ci --no-audit --no-fund
+          npm run typecheck
           npm run build
 
       - name: Build NeuroClassify 分类与模式识别平台
         working-directory: neuro
         run: |
           npm ci --no-audit --no-fund
+          npm run typecheck
           npm run build
 
       - name: Assemble the site
@@ -80,14 +82,31 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes" \
             site/ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/brian.mplusm.site/"
 
-      # 发布后自检：只报告状态码，不因为 DNS/证书尚未就绪而把构建标记为失败。
+      # 发布后自检。
+      # DNS 尚未生效时只提示（首次搭建阶段属正常）；一旦域名能解析，
+      # 任何非 200 都会让这次发布失败，避免坏版本静默上线。
       - name: Verify the live site
         run: |
           set -uo pipefail
-          base="https://brian.mplusm.site"
+          host="brian.mplusm.site"
+          base="https://${host}"
+
+          if ! getent hosts "$host" >/dev/null 2>&1; then
+            echo "::notice::$host 尚未解析（DNS 未配置），跳过线上自检。"
+            echo "部署已完成，域名生效后请重新运行本工作流或再次 push。"
+            exit 0
+          fi
+
           echo "自检 $base"
+          failed=0
           for path in / /wm/ /neuro/; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${base}${path}" || echo "ERR")
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${base}${path}" || echo "000")
             echo "  ${path} -> ${code}"
+            [ "$code" = "200" ] || failed=1
           done
-          echo "（非 200 时请检查 deploy/SETUP.md 中的 DNS 与 nginx 步骤）"
+
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::线上自检失败：至少一个路径未返回 200。请检查 nginx 配置与证书（见 deploy/SETUP.md）。"
+            exit 1
+          fi
+          echo "✓ 线上自检通过"
