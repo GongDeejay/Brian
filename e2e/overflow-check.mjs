@@ -130,79 +130,101 @@ const browser = await puppeteer.launch({
 let checked = 0;
 const failures = [];
 
+/**
+ * 串行跑 80 个组合要 4 分多钟；这里用固定并发把总时长压到 1 分钟左右，
+ * 每个组合仍是独立的 page，互不影响。
+ */
+const CONCURRENCY = Number(process.env.CHECK_CONCURRENCY || 4);
+
+async function checkOne(app, tab, width, lang) {
+  const page = await browser.newPage();
+  const jsErrors = [];
+  page.on('pageerror', (e) => jsErrors.push(String(e).slice(0, 140)));
+
+  try {
+    await page.setViewport({ width, height: 900 });
+    await page.goto(`${BASE}/${app}/`, { waitUntil: 'networkidle2' });
+    await page.evaluate(
+      (l, seeds) => {
+        localStorage.setItem('brian.lang', l);
+        if (seeds.wm) localStorage.setItem('wm_cognitive_platform_data_v1', seeds.wm);
+        if (seeds.neuro) sessionStorage.setItem('neuroclassify.sessions.v1', seeds.neuro);
+      },
+      lang,
+      seed(app, lang)
+    );
+    await page.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 300));
+
+    try {
+      await page.click(app === 'wm' ? `#tab-nav-${tab}` : `#task-tab-${tab}`);
+    } catch {
+      /* 窄屏下页签可能需横向滚动才可见，点不到就只检查当前视图 */
+    }
+    await new Promise((r) => setTimeout(r, 600));
+
+    const result = await page.evaluate(() => {
+      const de = document.documentElement;
+      const vw = window.innerWidth;
+      const offenders = [];
+      if (de.scrollWidth > vw + 1) {
+        const clipped = (el) => {
+          let p = el.parentElement;
+          while (p && p !== document.body) {
+            const cs = getComputedStyle(p);
+            if (['auto', 'scroll', 'hidden', 'clip'].includes(cs.overflowX)) return p;
+            p = p.parentElement;
+          }
+          return null;
+        };
+        for (const el of document.querySelectorAll('body *')) {
+          const b = el.getBoundingClientRect();
+          if (b.right > vw + 1 && !clipped(el) && b.width < vw * 3) {
+            offenders.push(
+              `<${el.tagName.toLowerCase()} class="${(el.className || '').toString().slice(0, 70)}"> right=${Math.round(b.right)}`
+            );
+          }
+        }
+      }
+      return {
+        vw,
+        scrollWidth: de.scrollWidth,
+        crashed: /encountered a problem|遇到问题/.test(document.body.innerText),
+        offenders: offenders.slice(0, 3),
+      };
+    });
+
+    checked += 1;
+    const overflow = result.scrollWidth - result.vw;
+    const label = `${width}px [${lang}] ${app}/${tab}`;
+
+    if (result.crashed) failures.push(`${label}: 页面进入错误边界（渲染异常）`);
+    else if (overflow > 1) failures.push(`${label}: 横向溢出 ${overflow}px → ${result.offenders.join(' ; ')}`);
+    else if (jsErrors.length > 0) failures.push(`${label}: JS 错误 ${jsErrors[0]}`);
+  } finally {
+    await page.close();
+  }
+}
+
+// 展开成任务列表后按固定并发执行
+const tasks = [];
 for (const [app, tabs] of Object.entries(TABLES)) {
   for (const width of WIDTHS) {
     for (const lang of LANGS) {
-      for (const tab of tabs) {
-        const page = await browser.newPage();
-        const jsErrors = [];
-        page.on('pageerror', (e) => jsErrors.push(String(e).slice(0, 140)));
-
-        await page.setViewport({ width, height: 900 });
-        await page.goto(`${BASE}/${app}/`, { waitUntil: 'networkidle2' });
-        await page.evaluate(
-          (l, seeds) => {
-            localStorage.setItem('brian.lang', l);
-            if (seeds.wm) localStorage.setItem('wm_cognitive_platform_data_v1', seeds.wm);
-            if (seeds.neuro) sessionStorage.setItem('neuroclassify.sessions.v1', seeds.neuro);
-          },
-          lang,
-          seed(app, lang)
-        );
-        await page.reload({ waitUntil: 'networkidle2' });
-        await new Promise((r) => setTimeout(r, 350));
-
-        try {
-          await page.click(app === 'wm' ? `#tab-nav-${tab}` : `#task-tab-${tab}`);
-        } catch {
-          /* 某些任务页签在窄屏需滚动才可见，忽略点击失败 */
-        }
-        await new Promise((r) => setTimeout(r, 650));
-
-        const result = await page.evaluate(() => {
-          const de = document.documentElement;
-          const vw = window.innerWidth;
-          const offenders = [];
-          if (de.scrollWidth > vw + 1) {
-            const clipped = (el) => {
-              let p = el.parentElement;
-              while (p && p !== document.body) {
-                const cs = getComputedStyle(p);
-                if (['auto', 'scroll', 'hidden', 'clip'].includes(cs.overflowX)) return p;
-                p = p.parentElement;
-              }
-              return null;
-            };
-            for (const el of document.querySelectorAll('body *')) {
-              const b = el.getBoundingClientRect();
-              if (b.right > vw + 1 && !clipped(el) && b.width < vw * 3) {
-                offenders.push(
-                  `<${el.tagName.toLowerCase()} class="${(el.className || '').toString().slice(0, 70)}"> right=${Math.round(b.right)}`
-                );
-              }
-            }
-          }
-          return {
-            vw,
-            scrollWidth: de.scrollWidth,
-            crashed: /encountered a problem|遇到问题/.test(document.body.innerText),
-            offenders: offenders.slice(0, 3),
-          };
-        });
-
-        checked += 1;
-        const overflow = result.scrollWidth - result.vw;
-        const label = `${width}px [${lang}] ${app}/${tab}`;
-
-        if (result.crashed) failures.push(`${label}: 页面进入错误边界（渲染异常）`);
-        else if (overflow > 1) failures.push(`${label}: 横向溢出 ${overflow}px → ${result.offenders.join(' ; ')}`);
-        else if (jsErrors.length > 0) failures.push(`${label}: JS 错误 ${jsErrors[0]}`);
-
-        await page.close();
-      }
+      for (const tab of tabs) tasks.push({ app, tab, width, lang });
     }
   }
 }
+
+let cursor = 0;
+async function worker() {
+  while (cursor < tasks.length) {
+    const task = tasks[cursor];
+    cursor += 1;
+    await checkOne(task.app, task.tab, task.width, task.lang);
+  }
+}
+await Promise.all(Array.from({ length: Math.min(CONCURRENCY, tasks.length) }, () => worker()));
 
 await browser.close();
 
