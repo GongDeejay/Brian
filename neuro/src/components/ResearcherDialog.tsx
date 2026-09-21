@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BarChart3, Download, FileSpreadsheet, Plus, RefreshCw, Users, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 import { useDialogA11y } from '../hooks/useDialogA11y';
@@ -122,7 +123,14 @@ export const ResearcherDialog = ({ isOpen, onClose }: Props) => {
 
   if (!isOpen) return null;
 
-  return (
+  /*
+   * 用 portal 挂到 document.body。
+   *
+   * 这两个弹窗由 Header 渲染，而 Header 带 backdrop-blur —— backdrop-filter 会为
+   * fixed 后代创建包含块，使 `position: fixed` 退化为相对 Header 定位，页面滚动时
+   * 弹窗会跟着移动、顶部被裁掉。portal 让弹窗真正相对视口定位。
+   */
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-sm"
       onMouseDown={handleBackdropMouseDown}
@@ -330,6 +338,7 @@ export const ResearcherDialog = ({ isOpen, onClose }: Props) => {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

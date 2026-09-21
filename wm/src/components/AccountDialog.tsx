@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
   BarChart3,
@@ -163,7 +164,14 @@ export const AccountDialog = ({ isOpen, onClose }: Props) => {
   const signedIn = auth.user !== null;
   const needsConsent = signedIn && !auth.hasConsented;
 
-  return (
+  /*
+   * 用 portal 挂到 document.body。
+   *
+   * 这两个弹窗由 Header 渲染，而 Header 带 backdrop-blur —— backdrop-filter 会为
+   * fixed 后代创建包含块，使 `position: fixed` 退化为相对 Header 定位，页面滚动时
+   * 弹窗会跟着移动、顶部被裁掉。portal 让弹窗真正相对视口定位。
+   */
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-sm sm:items-center"
       onMouseDown={handleBackdropMouseDown}
@@ -471,6 +479,7 @@ export const AccountDialog = ({ isOpen, onClose }: Props) => {
 
       {/* 研究者视图叠在账号弹窗之上 */}
       <ResearcherDialog isOpen={isResearcherOpen} onClose={() => setIsResearcherOpen(false)} />
-    </div>
+    </div>,
+    document.body
   );
 };
