@@ -311,6 +311,7 @@ export const AccountDialog = ({ isOpen, onClose }: Props) => {
               )}
 
               <button
+                id="btn-auth-submit"
                 type="button"
                 onClick={tab === 'signIn' ? handleSignIn : handleRegister}
                 disabled={busy}
@@ -392,7 +393,7 @@ export const AccountDialog = ({ isOpen, onClose }: Props) => {
                 {t('account.localCount', { count: stats.total })}
                 {stats.pending > 0 && ` · ${t('account.syncPending', { count: stats.pending })}`}
               </p>
-              <button type="button" onClick={handleSync} disabled={syncing} className={secondaryButton}>
+              <button id="btn-account-sync" type="button" onClick={handleSync} disabled={syncing} className={secondaryButton}>
                 <Download className="h-3.5 w-3.5" aria-hidden="true" />
                 {syncing ? t('account.syncing') : t('account.syncNow')}
               </button>
