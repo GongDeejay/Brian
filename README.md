@@ -58,6 +58,22 @@ cd neuro && npm ci && npm run build   # 产物 neuro/dist/
 产物的资源路径已经按子路径写好（`/wm/` 与 `/neuro/`）。**如果要部署到别的路径，
 必须同步修改对应 `vite.config.ts` 里的 `base`**，否则页面会白屏。
 
+## 测试
+
+```bash
+# 后端：30+ 项端到端断言（注册/登录/上报幂等/权限隔离/导出/删除权）
+cd api && npm run smoke
+
+# 布局回归：真实浏览器检查页面级横向溢出
+# （英文文案更长，一旦把文档撑得比视口宽，居中内容就会整体偏左）
+cd e2e && npm ci
+node serve.mjs ../site 8099 &          # 或指向已构建的站点目录
+node overflow-check.mjs http://127.0.0.1:8099
+```
+
+两者都在 CI 中于部署前执行：`npm run smoke` 与 `overflow-check.mjs`
+（4 种宽度 × 2 种语言 × 10 个页面 = 80 个组合）。
+
 ## 部署
 
 推送到 `main` 分支后，GitHub Actions 会自动构建两个平台、组装站点并通过 rsync 发布到服务器。
