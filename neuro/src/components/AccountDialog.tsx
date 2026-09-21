@@ -283,8 +283,7 @@ export const AccountDialog = ({ isOpen, onClose }: Props) => {
 
                   <label className="block">
                     <span className="mb-1 block text-xs font-medium text-slate-300">
-                      {t('account.displayName')}{' '}
-                      <span className="text-slate-500">({t('common.optional')})</span>
+                      {t('account.displayName')}
                     </span>
                     <input
                       type="text"
