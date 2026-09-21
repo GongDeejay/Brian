@@ -238,6 +238,11 @@
         border-color: rgba(16, 185, 129, 0.3);
         color: #34d399;
       }
+      .card.plasticity .icon {
+        background: rgba(167, 139, 250, 0.14);
+        border-color: rgba(167, 139, 250, 0.32);
+        color: #a78bfa;
+      }
 
       .card h2 {
         margin: 0 0 0.55rem;
@@ -287,6 +292,9 @@
       }
       .card.talent .go {
         color: #34d399;
+      }
+      .card.plasticity .go {
+        color: #a78bfa;
       }
 
       .go svg {
@@ -473,6 +481,40 @@
             </svg>
           </span>
         </a>
+        <a class="card plasticity" href="./plasticity/">
+          <span class="icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v3" />
+              <circle cx="12" cy="9" r="3" />
+              <path d="M12 12v2" />
+              <circle cx="7" cy="17" r="2.4" />
+              <circle cx="17" cy="17" r="2.4" />
+              <path d="M10.4 15.2 8.6 15.8M13.6 15.2l1.8.6" />
+            </svg>
+          </span>
+          <h2 data-zh="《神经可塑性》互动思维导图" data-en="Neuroplasticity · Interactive Mind Map">
+            《神经可塑性》互动思维导图
+          </h2>
+          <p
+            data-zh="把大脑重塑的关键机制、突触学习与科学实践协议做成可点开的思维导图：含突触放电模拟、髓鞘化与习惯协议追踪，便于自学与教学演示。"
+            data-en="An interactive mind map of how brains rewire: core mechanisms, synaptic learning and practice protocols, plus a firing simulator, myelination and habit trackers for teaching and self-study."
+          >
+            把大脑重塑的关键机制、突触学习与科学实践协议做成可点开的思维导图：含突触放电模拟、髓鞘化与习惯协议追踪，便于自学与教学演示。
+          </p>
+          <ul class="tags">
+            <li data-zh="互动思维导图" data-en="Interactive mind map">互动思维导图</li>
+            <li data-zh="突触模拟" data-en="Synaptic simulator">突触模拟</li>
+            <li data-zh="BDNF / 髓鞘" data-en="BDNF / myelin">BDNF / 髓鞘</li>
+            <li data-zh="实践协议" data-en="Practice protocols">实践协议</li>
+            <li data-zh="中英双语" data-en="Bilingual">中英双语</li>
+          </ul>
+          <span class="go">
+            <span data-zh="打开导图" data-en="Open mind map">打开导图</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </span>
+        </a>
       </main>
 
       <p
@@ -495,8 +537,8 @@
 
     <script>
       /*
-       * 极简双语切换。语言偏好与两个子应用共用同一个 localStorage 键
-       * （`brian.lang`），因此在这里切换后，进入 /wm/ 或 /neuro/ 也会保持一致。
+       * 极简双语切换。语言偏好与各子应用共用同一个 localStorage 键
+       * （`brian.lang`），因此在这里切换后，进入 /wm/、/neuro/、/talent/、/plasticity/ 也会保持一致。
        */
       (function () {
         var STORAGE_KEY = 'brian.lang';

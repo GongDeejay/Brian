@@ -1,6 +1,6 @@
 # Brian 认知神经科学实验平台
 
-在浏览器中直接运行的认知任务与潜能评估平台，部署为静态站点：
+在浏览器中直接运行的认知任务、潜能评估与脑科学导图平台，部署为静态站点：
 **<https://brian.mplusm.site>**
 
 | 路径 | 平台 | 内容 |
@@ -9,6 +9,7 @@
 | `/neuro/` | **NeuroClassify 分类与模式识别** | WCST、ID/ED 定势转移、WPT 概率分类、原型畸变迁移、Gabor RB/II |
 | `/wm/` | **工作记忆训练与评估平台** | N-back、OSPAN 复杂运算跨度、视觉变化检测（Cowan's K）、五维认知画像 |
 | `/talent/` | **优势潜能罗盘 (TalentCompass)** | 隐性优势测评、盖洛普 SIGN 模型、精力审计、360° 镜像视窗、纳瓦尔特定知识与 12 核心原型画像 |
+| `/plasticity/` | **《神经可塑性》互动思维导图** | 大脑重塑机制导图、突触放电模拟、BDNF/髓鞘实践协议追踪 |
 
 ## ⚠️ 使用须知
 
@@ -33,6 +34,9 @@
 ├── talent/             # 优势潜能罗盘测评平台
 │   ├── src/
 │   └── vite.config.ts  # base: '/talent/'
+├── plasticity/         # 《神经可塑性》互动思维导图
+│   ├── src/
+│   └── vite.config.ts  # base: '/plasticity/'
 ├── deploy/             # 部署资产（nginx 配置、DNS 脚本、说明）
 └── .github/workflows/  # push 即自动构建并发布
 ```
@@ -50,19 +54,24 @@ cd neuro && npm install && npm run dev
 
 # 优势潜能罗盘 → http://localhost:3002
 cd talent && npm install && npm run dev
+
+# 《神经可塑性》互动思维导图 → http://localhost:3003
+cd plasticity && npm install && npm run dev
 ```
 
-三个平台都**不需要任何环境变量或 API Key**，构建与运行完全在前端完成。
+四个平台都**不需要任何环境变量或 API Key**，构建与运行完全在前端完成。
 （仓库中的 `.env.example` 是 AI Studio 脚手架的遗留物，代码从不读取它。）
 
 ## 构建
 
 ```bash
-cd wm    && npm ci && npm run build   # 产物 wm/dist/
-cd neuro && npm ci && npm run build   # 产物 neuro/dist/
+cd wm         && npm ci && npm run build   # 产物 wm/dist/
+cd neuro      && npm ci && npm run build   # 产物 neuro/dist/
+cd talent     && npm ci && npm run build   # 产物 talent/dist/
+cd plasticity && npm ci && npm run build   # 产物 plasticity/dist/
 ```
 
-产物的资源路径已经按子路径写好（`/wm/` 与 `/neuro/`）。**如果要部署到别的路径，
+产物的资源路径已经按子路径写好（`/wm/`、`/neuro/`、`/talent/`、`/plasticity/`）。**如果要部署到别的路径，
 必须同步修改对应 `vite.config.ts` 里的 `base`**，否则页面会白屏。
 
 ## 测试
@@ -79,11 +88,11 @@ node overflow-check.mjs http://127.0.0.1:8099
 ```
 
 两者都在 CI 中于部署前执行：`npm run smoke` 与 `overflow-check.mjs`
-（4 种宽度 × 2 种语言 × 10 个页面 = 80 个组合）。
+（4 种宽度 × 2 种语言 × 各子应用页面组合）。
 
 ## 部署
 
-推送到 `main` 分支后，GitHub Actions 会自动构建两个平台、组装站点并通过 rsync 发布到服务器。
+推送到 `main` 分支后，GitHub Actions 会自动构建各前端平台、组装站点并通过 rsync 发布到服务器。
 完整的一次性搭建步骤（DNS、nginx、HTTPS、GitHub Secrets）见 [`deploy/SETUP.md`](deploy/SETUP.md)。
 
 ## 已知限制

@@ -1,6 +1,6 @@
 name: Deploy to brian.mplusm.site
 
-# 推送到 main 即自动构建两个平台并发布；
+# 推送到 main 即自动构建各前端平台并发布；
 # 也可以在 Actions 页面手动触发（workflow_dispatch）。
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
             wm/package-lock.json
             neuro/package-lock.json
             talent/package-lock.json
+            plasticity/package-lock.json
 
       - name: Build 工作记忆训练与评估平台
         working-directory: wm
@@ -48,6 +49,13 @@ jobs:
 
       - name: Build 优势潜能罗盘测评平台
         working-directory: talent
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run build
+
+      - name: Build 《神经可塑性》互动思维导图
+        working-directory: plasticity
         run: |
           npm ci --no-audit --no-fund
           npm run typecheck
@@ -72,11 +80,12 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf site
-          mkdir -p site/wm site/neuro site/talent
+          mkdir -p site/wm site/neuro site/talent site/plasticity
           cp index.html site/index.html
           cp -R wm/dist/. site/wm/
           cp -R neuro/dist/. site/neuro/
           cp -R talent/dist/. site/talent/
+          cp -R plasticity/dist/. site/plasticity/
           # 保留一份构建溯源信息，方便确认线上跑的是哪个提交。
           cat > site/BUILD_INFO.json <<EOF
           {
@@ -195,7 +204,7 @@ jobs:
           failed=0
           not_ready=0
 
-          for path in / /wm/ /neuro/ /talent/; do
+          for path in / /wm/ /neuro/ /talent/ /plasticity/; do
             url="${base}${path}"
             err=$(mktemp)
             # NOTE: the runner invokes bash with -e, so a bare failing command

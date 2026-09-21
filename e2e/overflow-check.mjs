@@ -30,7 +30,15 @@ const LANGS = ['zh', 'en'];
 const TABLES = {
   wm: ['nback', 'ospan', 'change_detection', 'dashboard'],
   neuro: ['wcst', 'wpt', 'ided', 'gabor', 'prototype', 'analytics'],
+  talent: ['quiz', 'qualitative', 'report', 'energy', 'mirror', 'theories'],
+  plasticity: ['mindmap', 'simulator', 'protocols'],
 };
+
+function tabSelector(app, tab) {
+  if (app === 'neuro') return `#task-tab-${tab}`;
+  if (app === 'plasticity') return `#tab-${tab}`;
+  return `#tab-nav-${tab}`;
+}
 
 function findChrome() {
   if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) return process.env.CHROME_PATH;
@@ -157,7 +165,7 @@ async function checkOne(app, tab, width, lang) {
     await new Promise((r) => setTimeout(r, 300));
 
     try {
-      await page.click(app === 'wm' ? `#tab-nav-${tab}` : `#task-tab-${tab}`);
+      await page.click(tabSelector(app, tab));
     } catch {
       /* 窄屏下页签可能需横向滚动才可见，点不到就只检查当前视图 */
     }

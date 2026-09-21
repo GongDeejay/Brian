@@ -5,7 +5,7 @@
 - **域名**：`brian.mplusm.site`
 - **服务器**：腾讯云 `43.133.145.77`（OpenCloudOS 9.4 / nginx 1.28 / certbot 2.8）
 - **站点根目录**：`/var/www/brian.mplusm.site`
-- **站点结构**：`/`（入口页）、`/wm/`、`/neuro/`
+- **站点结构**：`/`（入口页）、`/wm/`、`/neuro/`、`/talent/`、`/plasticity/`
 
 ---
 
@@ -163,13 +163,15 @@ cat ~/.ssh/brian_deploy
 git push origin main
 ```
 
-GitHub Actions 会依次：安装依赖 → 构建两个平台 → 组装站点 → rsync 到服务器 → 自检状态码。
+GitHub Actions 会依次：安装依赖 → 构建各前端平台 → 组装站点 → rsync 到服务器 → 自检状态码。
 
 在仓库 **Actions** 标签页可以看到进度。成功后访问：
 
 - <https://brian.mplusm.site/> — 入口页
 - <https://brian.mplusm.site/wm/> — 工作记忆训练与评估平台
 - <https://brian.mplusm.site/neuro/> — NeuroClassify 分类与模式识别
+- <https://brian.mplusm.site/talent/> — 优势潜能罗盘
+- <https://brian.mplusm.site/plasticity/> — 《神经可塑性》互动思维导图
 
 ---
 
@@ -177,8 +179,8 @@ GitHub Actions 会依次：安装依赖 → 构建两个平台 → 组装站点 
 
 ### 只发一个平台
 
-两个平台在同一个仓库里，任何一次 push 都会重建两者。如果只想改一个，
-直接在对应目录下开发即可——CI 会重新构建两个，但只有变化的部分会真正改变。
+各前端平台在同一个仓库里，任何一次 push 都会重建全部。如果只想改一个，
+直接在对应目录下开发即可——CI 会重新构建全部，但只有变化的部分会真正改变。
 
 ### 回滚
 
@@ -204,11 +206,17 @@ git revert <commit> && git push origin main
 ### 本地预览「线上最终形态」
 
 ```bash
-cd wm && npm run build && cd ../neuro && npm run build && cd ..
-rm -rf /tmp/brian-site && mkdir -p /tmp/brian-site/wm /tmp/brian-site/neuro
+cd wm && npm run build
+cd ../neuro && npm run build
+cd ../talent && npm run build
+cd ../plasticity && npm run build
+cd ..
+rm -rf /tmp/brian-site && mkdir -p /tmp/brian-site/{wm,neuro,talent,plasticity}
 cp index.html /tmp/brian-site/
 cp -R wm/dist/. /tmp/brian-site/wm/
 cp -R neuro/dist/. /tmp/brian-site/neuro/
+cp -R talent/dist/. /tmp/brian-site/talent/
+cp -R plasticity/dist/. /tmp/brian-site/plasticity/
 python3 -m http.server 8080 --directory /tmp/brian-site
 # 打开 http://localhost:8080/
 ```

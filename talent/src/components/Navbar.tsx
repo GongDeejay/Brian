@@ -106,7 +106,7 @@ export function Navbar({
       </div>
 
       {/* Navigation Sub-bar */}
-      <div className="mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6">
+      <div className="relative mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6">
         <nav className="flex space-x-1 border-t border-slate-100 py-1.5">
           {tabs.map((tab) => {
             const Icon = tab.icon;

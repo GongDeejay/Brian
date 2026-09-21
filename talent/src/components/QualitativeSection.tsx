@@ -161,7 +161,7 @@ export function QualitativeSection({
       </div>
 
       {/* Tabs for 5 Questions */}
-      <div className="flex space-x-1.5 overflow-x-auto pb-2">
+      <div className="relative flex space-x-1.5 overflow-x-auto pb-2">
         {QUALITATIVE_QUESTIONS.map((q, idx) => {
           const isDone = Boolean(answers[q.id]?.trim());
           const isActive = activeTab === q.id;
