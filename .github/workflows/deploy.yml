@@ -30,6 +30,7 @@ jobs:
           cache-dependency-path: |
             wm/package-lock.json
             neuro/package-lock.json
+            talent/package-lock.json
 
       - name: Build 工作记忆训练与评估平台
         working-directory: wm
@@ -40,6 +41,13 @@ jobs:
 
       - name: Build NeuroClassify 分类与模式识别平台
         working-directory: neuro
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run build
+
+      - name: Build 优势潜能罗盘测评平台
+        working-directory: talent
         run: |
           npm ci --no-audit --no-fund
           npm run typecheck
@@ -64,10 +72,11 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf site
-          mkdir -p site/wm site/neuro
+          mkdir -p site/wm site/neuro site/talent
           cp index.html site/index.html
           cp -R wm/dist/. site/wm/
           cp -R neuro/dist/. site/neuro/
+          cp -R talent/dist/. site/talent/
           # 保留一份构建溯源信息，方便确认线上跑的是哪个提交。
           cat > site/BUILD_INFO.json <<EOF
           {
@@ -186,7 +195,7 @@ jobs:
           failed=0
           not_ready=0
 
-          for path in / /wm/ /neuro/; do
+          for path in / /wm/ /neuro/ /talent/; do
             url="${base}${path}"
             err=$(mktemp)
             # NOTE: the runner invokes bash with -e, so a bare failing command
