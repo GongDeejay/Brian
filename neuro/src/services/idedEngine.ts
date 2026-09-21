@@ -1,4 +1,5 @@
 import { IDEDStage, IDEDStats, IDEDTrial } from '../types';
+import { translate, type Lang, type MessageKey } from '../i18n';
 
 export type IDEDShapeType = 'polygon' | 'oval' | 'star' | 'crescent' | 'cross' | 'hex';
 export type IDEDLineType = 'wavy' | 'zigzag' | 'dashed' | 'spiral' | 'dots' | 'crosshatch';
@@ -13,8 +14,10 @@ export interface IDEDStimulusVisual {
 
 export interface IDEDStageDefinition {
   stage: IDEDStage;
-  name: string;
-  description: string;
+  /** i18n key of the human-readable stage name (resolved via `t` in the view). */
+  nameKey: MessageKey;
+  /** i18n key of the researcher-facing stage description (never shown to participants). */
+  descriptionKey: MessageKey;
   relevantDimension: 'shape' | 'line';
   /**
    * Index inside the pair returned by `getStimuliForStage` whose RELEVANT
@@ -32,56 +35,56 @@ export const MAX_TRIALS_PER_STAGE = 50;
 export const IDED_STAGES_CONFIG: IDEDStageDefinition[] = [
   {
     stage: 'SD',
-    name: '简单辨别 (Simple Discrimination)',
-    description: '学习在两个基础图形中识别出受奖励的目标项。',
+    nameKey: 'ided.stage.sd.name',
+    descriptionKey: 'ided.stage.sd.desc',
     relevantDimension: 'shape',
     reinforcedIndexInPair: 0,
     consecutiveRequired: 6,
   },
   {
     stage: 'SR',
-    name: '简单逆转 (Simple Reversal)',
-    description: '同一图形下奖励规则突然对调，测量初级逆转学习。',
+    nameKey: 'ided.stage.sr.name',
+    descriptionKey: 'ided.stage.sr.desc',
     relevantDimension: 'shape',
     reinforcedIndexInPair: 1,
     consecutiveRequired: 6,
   },
   {
     stage: 'CD',
-    name: '复合辨别 (Compound Discrimination)',
-    description: '引入不相关的线条干扰项（每试次变化），需维持对图形维度的选择性注意。',
+    nameKey: 'ided.stage.cd.name',
+    descriptionKey: 'ided.stage.cd.desc',
     relevantDimension: 'shape',
     reinforcedIndexInPair: 1,
     consecutiveRequired: 6,
   },
   {
     stage: 'IDS',
-    name: '维度内定势转移 (Intra-Dimensional Shift)',
-    description: '出现全新图形和全新线条，但分类关键维度仍然是“图形”。',
+    nameKey: 'ided.stage.ids.name',
+    descriptionKey: 'ided.stage.ids.desc',
     relevantDimension: 'shape',
     reinforcedIndexInPair: 0,
     consecutiveRequired: 6,
   },
   {
     stage: 'IDR',
-    name: '维度内逆转 (ID Reversal)',
-    description: '新图形中的正确目标对调。',
+    nameKey: 'ided.stage.idr.name',
+    descriptionKey: 'ided.stage.idr.desc',
     relevantDimension: 'shape',
     reinforcedIndexInPair: 1,
     consecutiveRequired: 6,
   },
   {
     stage: 'EDS',
-    name: '维度间定势转移 (Extra-Dimensional Shift)',
-    description: '核心测试：注意定势必须从“图形”打破，转移至之前无关的“线条”（图形每试次变化）。',
+    nameKey: 'ided.stage.eds.name',
+    descriptionKey: 'ided.stage.eds.desc',
     relevantDimension: 'line',
     reinforcedIndexInPair: 0,
     consecutiveRequired: 6,
   },
   {
     stage: 'EDR',
-    name: '维度间逆转 (ED Reversal)',
-    description: '在线条规则下奖励对调，验证前额叶对新维度的稳定抑制与灵活调控。',
+    nameKey: 'ided.stage.edr.name',
+    descriptionKey: 'ided.stage.edr.desc',
     relevantDimension: 'line',
     reinforcedIndexInPair: 1,
     consecutiveRequired: 6,
@@ -105,29 +108,32 @@ const SHAPE_POOL: IDEDShapeType[] = ['polygon', 'oval', 'star', 'crescent', 'hex
 const LINE_POOL: IDEDLineType[] = ['wavy', 'zigzag', 'dashed', 'spiral', 'dots', 'crosshatch'];
 const IRRELEVANT_OFFSET = 3; // coprime with the pool length (6) -> the two stimuli always differ
 
-const SHAPE_NAMES: Record<IDEDShapeType, string> = {
-  polygon: '三角形',
-  oval: '椭圆',
-  star: '星形',
-  crescent: '月牙',
-  cross: '十字',
-  hex: '六边形',
+const SHAPE_NAME_KEYS: Record<IDEDShapeType, MessageKey> = {
+  polygon: 'ided.stimulus.shape.polygon',
+  oval: 'ided.stimulus.shape.oval',
+  star: 'ided.stimulus.shape.star',
+  crescent: 'ided.stimulus.shape.crescent',
+  cross: 'ided.stimulus.shape.cross',
+  hex: 'ided.stimulus.shape.hex',
 };
 
-const LINE_NAMES: Record<IDEDLineType | 'none', string> = {
-  wavy: '波浪线',
-  zigzag: '锯齿线',
-  dashed: '虚线',
-  spiral: '螺旋线',
-  dots: '点线圈',
-  crosshatch: '交叉线',
-  none: '无线条',
+const LINE_NAME_KEYS: Record<IDEDLineType, MessageKey> = {
+  wavy: 'ided.stimulus.line.wavy',
+  zigzag: 'ided.stimulus.line.zigzag',
+  dashed: 'ided.stimulus.line.dashed',
+  spiral: 'ided.stimulus.line.spiral',
+  dots: 'ided.stimulus.line.dots',
+  crosshatch: 'ided.stimulus.line.crosshatch',
 };
 
-export function describeIDEDStimulus(stimulus: IDEDStimulusVisual): string {
-  const shape = SHAPE_NAMES[stimulus.shapeType];
-  const line = stimulus.lineType === 'none' ? '' : `，叠加${LINE_NAMES[stimulus.lineType]}`;
-  return `${shape}${line}`;
+/** Localised accessible description of a stimulus, e.g. "ellipse with a wavy line overlaid". */
+export function describeIDEDStimulus(stimulus: IDEDStimulusVisual, lang: Lang = 'zh'): string {
+  const shape = translate(lang, SHAPE_NAME_KEYS[stimulus.shapeType]);
+  if (stimulus.lineType === 'none') return shape;
+  return translate(lang, 'ided.stimulus.withLine', {
+    shape,
+    line: translate(lang, LINE_NAME_KEYS[stimulus.lineType]),
+  });
 }
 
 /** Fixed relevant-dimension exemplars per stage. */

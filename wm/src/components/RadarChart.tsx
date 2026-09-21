@@ -1,3 +1,5 @@
+import { useI18n } from '../i18n';
+
 interface RadarAxis {
   label: string;
   value: number; // 0 to 100
@@ -15,6 +17,9 @@ function safeValue(value: number): number {
 }
 
 export const RadarChart = ({ axes, size = 300 }: RadarChartProps) => {
+  // Hooks must run before the early return below, hence the call up here.
+  const { t } = useI18n();
+
   // A radar needs at least three axes to enclose an area; with fewer measured
   // dimensions the caller must show an explicit empty state instead of a
   // degenerate polygon.
@@ -46,8 +51,8 @@ export const RadarChart = ({ axes, size = 300 }: RadarChartProps) => {
     .join(' ');
 
   const accessibleSummary = axes
-    .map((axis, i) => `${axis.label} ${Math.round(values[i])} 分`)
-    .join('，');
+    .map((axis, i) => t('dash.axisValue', { label: axis.label, value: Math.round(values[i]) }))
+    .join(t('dash.summarySeparator'));
 
   return (
     <div className="flex flex-col items-center justify-center">
@@ -55,10 +60,10 @@ export const RadarChart = ({ axes, size = 300 }: RadarChartProps) => {
         width={size}
         height={size}
         role="img"
-        aria-label={`认知维度雷达图：${accessibleSummary}`}
+        aria-label={t('dash.radarAria', { summary: accessibleSummary })}
         className="overflow-visible select-none drop-shadow-md"
       >
-        <title>{`认知维度雷达图（${totalAxes} 维）：${accessibleSummary}`}</title>
+        <title>{t('dash.radarTitle', { count: totalAxes, summary: accessibleSummary })}</title>
 
         {/* Concentric grid rings */}
         {levels.map((level) => {
@@ -143,7 +148,7 @@ export const RadarChart = ({ axes, size = 300 }: RadarChartProps) => {
                 dy="13"
                 className="text-[10px] font-mono fill-indigo-400 font-bold"
               >
-                {Math.round(values[i])}分
+                {t('dash.points', { value: Math.round(values[i]) })}
               </tspan>
             </text>
           );

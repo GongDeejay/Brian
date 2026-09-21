@@ -212,3 +212,102 @@ cp -R neuro/dist/. /tmp/brian-site/neuro/
 python3 -m http.server 8080 --directory /tmp/brian-site
 # 打开 http://localhost:8080/
 ```
+
+---
+
+## 8. 数据服务（API）部署
+
+从这一版起，站点不再只是静态文件，还包含一个 Node 数据服务（`api/`），
+用于账号、测评数据留存、受试者编号管理与导出。
+
+### 8.1 目录与数据位置
+
+| 用途 | 路径 | 说明 |
+| --- | --- | --- |
+| 服务代码 | `/srv/brian-api` | 由 CI rsync 发布（排除 `node_modules`、`.env`、数据库） |
+| 数据库与备份 | `/var/www/brian-data/` | **故意放在站点发布目录之外** |
+| 日志 | `/var/log/brian-api/` | pm2 输出与备份日志 |
+| 服务端配置 | `/srv/brian-api/.env` | 权限 600，**不进仓库**，不受发布覆盖 |
+
+> ⚠️ 数据库绝不能放在 `/var/www/brian.mplusm.site/` 内。CI 用 `rsync --delete`
+> 发布前端，放进去会导致**每次推送都清空全部受试者数据**。
+
+### 8.2 一次性准备
+
+```bash
+ssh root@43.133.145.77 '
+mkdir -p /srv/brian-api /var/www/brian-data/backups /var/log/brian-api
+chmod 700 /var/www/brian-data /var/www/brian-data/backups
+
+cat > /srv/brian-api/.env <<EOF
+BRIAN_IP_SALT='"$(openssl rand -hex 32)"'
+BRIAN_CONSENT_VERSION=2026-09-1
+BRIAN_OPEN_REGISTRATION=true
+BRIAN_MAX_REGISTRATIONS_PER_IP=30
+BRIAN_MAX_LOGIN_ATTEMPTS_PER_IP=20
+EOF
+chmod 600 /srv/brian-api/.env
+'
+```
+
+### 8.3 创建研究者账号
+
+研究者视图只对 `role = 'researcher'` 的账号开放。普通注册得到的是 `participant`，
+需要手动提权一次：
+
+```bash
+ssh root@43.133.145.77 '
+cd /srv/brian-api &&
+BRIAN_RESEARCHER_EMAIL="you@example.com" \
+BRIAN_RESEARCHER_PASSWORD="至少10位且含两类字符" \
+node scripts/seed-researcher.mjs'
+```
+
+若该邮箱已注册，此命令会把它提升为 researcher 并重置口令。
+
+### 8.4 nginx 反向代理
+
+正式 vhost 已包含：
+
+```nginx
+location ^~ /api/ {
+    proxy_pass http://127.0.0.1:3011;
+    # ... 转发 Host / X-Real-IP / X-Forwarded-Proto，并透传 cookie
+}
+```
+
+`^~` 前缀保证不会被静态资源的正则 location 抢走匹配。
+
+### 8.5 备份
+
+`api/scripts/backup.mjs` 用 SQLite 的 `VACUUM INTO` 生成一致性快照（WAL 模式下
+直接拷贝 `.db` 可能丢事务），保留最近 14 份。cron：
+
+```cron
+20 3 * * * cd /srv/brian-api && /usr/local/bin/node scripts/backup.mjs 14 >> /var/log/brian-api/backup.log 2>&1
+```
+
+手动验证备份与恢复：
+
+```bash
+ssh root@43.133.145.77 'cd /srv/brian-api && node scripts/backup.mjs 14 && ls -la /var/www/brian-data/backups/'
+```
+
+### 8.6 日常运维
+
+```bash
+ssh root@43.133.145.77 '
+pm2 status brian-api            # 进程状态
+pm2 logs brian-api --lines 50   # 最近日志
+pm2 reload brian-api            # 重载（CI 会自动执行）
+curl -s localhost:3011/api/health
+'
+```
+
+### 8.7 隐私与合规要点
+
+- 只保存测评指标与任务参数，**不收集姓名等身份信息**，受试者以编号标识。
+- 登录前必须显式勾选知情同意；未同意的账号即使登录也**不上传**任何数据。
+- 受试者可随时「导出我的全部数据」（JSON）与「删除账号与全部数据」（真实删除）。
+- 研究者只看到编号化数据；IP 仅以加盐哈希形式落库，用于限流与审计。
+- 条款内容变更时应递增 `BRIAN_CONSENT_VERSION`，以便追溯每位受试者同意的是哪一版。

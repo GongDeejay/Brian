@@ -27,6 +27,14 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // 本地开发时把 /api 转发到本机的 pm2 服务（生产由 nginx 反代）。
+      // 这样前端始终用同源相对路径 /api，cookie 也能正常工作。
+      proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:3011',
+          changeOrigin: false,
+        },
+      },
     },
   };
 });

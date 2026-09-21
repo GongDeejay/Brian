@@ -1,5 +1,6 @@
 import React from 'react';
 import { WPTCardCue } from '../types';
+import { useI18n, type MessageKey } from '../i18n';
 
 interface Props {
   cue: WPTCardCue;
@@ -7,7 +8,16 @@ interface Props {
   noiseLevel?: number;
 }
 
+/** Cue names live in the catalogue; `cue.name` itself is language-independent data. */
+const CUE_NAME_KEYS: Record<WPTCardCue['pattern'], MessageKey> = {
+  triangular_mosaic: 'wpt.cue.triangles',
+  nested_diamonds: 'wpt.cue.diamonds',
+  radiating_stars: 'wpt.cue.circles',
+  geometric_grid: 'wpt.cue.squares',
+};
+
 export const WPTCardTarot: React.FC<Props> = ({ cue, isActive, noiseLevel = 0 }) => {
+  const { t } = useI18n();
   const renderGeometricPattern = () => {
     switch (cue.pattern) {
       case 'triangular_mosaic':
@@ -64,8 +74,10 @@ export const WPTCardTarot: React.FC<Props> = ({ cue, isActive, noiseLevel = 0 })
     >
       {/* Card Header */}
       <div className="w-full flex items-center justify-between text-[10px] font-mono text-slate-400 px-1">
-        <span>塔罗 #{cue.id}</span>
-        <span className="font-bold text-slate-300">{isActive ? '呈递' : '休眠'}</span>
+        <span>{t('wpt.card.label', { index: cue.id })}</span>
+        <span className="font-bold text-slate-300">
+          {isActive ? t('wpt.card.active') : t('wpt.card.dormant')}
+        </span>
       </div>
 
       {/* Geometric Artwork */}
@@ -75,7 +87,9 @@ export const WPTCardTarot: React.FC<Props> = ({ cue, isActive, noiseLevel = 0 })
 
       {/* Card Label */}
       <div className="w-full text-center">
-        <span className="text-[10px] text-slate-300 font-medium block truncate">{cue.name}</span>
+        <span className="text-[10px] text-slate-300 font-medium block truncate">
+          {t(CUE_NAME_KEYS[cue.pattern])}
+        </span>
       </div>
 
       {/* Noise filter if cognitive load active */}

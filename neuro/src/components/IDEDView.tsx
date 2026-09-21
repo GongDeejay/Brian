@@ -12,6 +12,7 @@ import {
 import { DistractorOverlay } from './DistractorOverlay';
 import { audioFeedback } from '../services/audioService';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { useI18n, type MessageKey } from '../i18n';
 import { RotateCcw, ShieldAlert, CheckCircle2, Award, Eye } from 'lucide-react';
 
 interface Props {
@@ -30,6 +31,7 @@ interface Presented {
 }
 
 export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, onSessionComplete }) => {
+  const { t, tList, lang } = useI18n();
   const [stagesCompleted, setStagesCompleted] = useState<number>(0);
   const [stageTrialIndex, setStageTrialIndex] = useState<number>(0);
   const [consecutiveCorrect, setConsecutiveCorrect] = useState<number>(0);
@@ -53,6 +55,16 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
   const currentStageDef = stagesCompleted < IDED_STAGES_CONFIG.length ? IDED_STAGES_CONFIG[stagesCompleted] : null;
   const isFinished = stagesCompleted >= IDED_STAGES_CONFIG.length || failedStage !== null;
   const stats = calculateIDEDStats(trials, stagesCompleted, failedStage);
+
+  /** Copy-only constants derived from the unchanged stage configuration. */
+  const totalStages = IDED_STAGES_CONFIG.length;
+  const criterion = IDED_STAGES_CONFIG[0].consecutiveRequired;
+  const failedStageCriterion = failedStage
+    ? IDED_STAGES_CONFIG.find((s) => s.stage === failedStage)?.consecutiveRequired ?? criterion
+    : criterion;
+
+  /** Renders a key array as one paragraph (no separator in Chinese, a space in English). */
+  const joinList = (keys: readonly MessageKey[]) => tList(keys).join(lang === 'zh' ? '' : ' ');
 
   /** Presents one trial: fixes the relevant exemplars, varies the irrelevant dimension,
    *  and randomises the reinforced left/right position. */
@@ -177,12 +189,13 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
       stats: { task: 'ided', ided: finalStats },
       durationSeconds: (Date.now() - sessionStartRef.current) / 1000,
       extraMetrics: {
-        '强化侧为左侧的试次数': leftReinforced,
-        '强化侧为右侧的试次数': rightReinforced,
-        '左侧强化占比 (%)': trials.length > 0 ? Math.round((leftReinforced / trials.length) * 100) : null,
+        [t('ided.metric.leftReinforcedTrials')]: leftReinforced,
+        [t('ided.metric.rightReinforcedTrials')]: rightReinforced,
+        [t('ided.metric.leftReinforcedRatio')]:
+          trials.length > 0 ? Math.round((leftReinforced / trials.length) * 100) : null,
       },
     });
-  }, [failedStage, isFinished, onSessionComplete, stagesCompleted, trials]);
+  }, [failedStage, isFinished, onSessionComplete, stagesCompleted, t, trials]);
 
   // Keyboard: ← / A select the left stimulus, → / B the right one.
   useEffect(() => {
@@ -311,8 +324,8 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
   const feedbackAnnouncement =
     lastFeedback === null
       ? ''
-      : `${lastFeedback.isCorrect ? '反应正确' : '反应错误'}${
-          lastFeedback.stageAdvanced ? '；已晋级下一阶段' : ''
+      : `${lastFeedback.isCorrect ? t('ided.a11y.correct') : t('ided.a11y.incorrect')}${
+          lastFeedback.stageAdvanced ? t('ided.a11y.advanced') : ''
         }`;
 
   return (
@@ -323,19 +336,18 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                注意定势转移 (CANTAB ID/ED)
+                {t('ided.badge')}
               </span>
               <span className="text-xs text-slate-500 font-mono">Robbins et al. (1998) / Cambridge Cognition</span>
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mt-1">
-              维度内/维度间定势转移测验 (Intra/Extra-Dimensional Set Shifting)
-            </h2>
+            <h2 className="text-xl font-bold text-slate-900 mt-1">{t('ided.title')}</h2>
             <p className="text-xs text-slate-600 max-w-3xl mt-0.5">
-              共 7 个阶段，每阶段需
-              <span className="font-semibold text-slate-900">连续 6 次答对</span>
-              才能晋级；每阶段最多 {MAX_TRIALS_PER_STAGE} 次试验，达到上限即判定该阶段未通过。
-              系统<span className="font-semibold text-slate-900">不会告知哪一维度相关</span>
-              ，左右位置每试次随机，请仅依据“正确/错误”反馈逐步学习。
+              {t('ided.intro.a', { total: totalStages })}
+              <span className="font-semibold text-slate-900">{t('ided.intro.criterion', { criterion })}</span>
+              {t('ided.intro.b', { maxTrials: MAX_TRIALS_PER_STAGE })}
+              {t('ided.intro.c')}
+              <span className="font-semibold text-slate-900">{t('ided.intro.hidden')}</span>
+              {t('ided.intro.d')}
             </p>
           </div>
 
@@ -343,7 +355,7 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
             <button
               onClick={() => setShowResearcherView((v) => !v)}
               aria-pressed={showResearcherView}
-              title="研究者视图：显示各阶段相关维度等会泄露规则的说明"
+              title={t('ided.researcher.title')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
                 showResearcherView
                   ? 'bg-amber-50 text-amber-800 border-amber-300'
@@ -351,7 +363,7 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
               }`}
             >
               <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-              研究者视图
+              {t('ided.researcher.toggle')}
             </button>
 
             <button
@@ -359,19 +371,27 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
             >
               <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              重置任务 (Reset)
+              {t('ided.action.reset')}
             </button>
           </div>
         </div>
 
         {showResearcherView && (
           <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900">
-            <strong>研究者视图已开启（以下信息会泄露规则，勿让受试者看到）：</strong>
+            <strong>{t('ided.researcher.warning')}</strong>
             <div className="mt-2 space-y-1">
               {IDED_STAGES_CONFIG.map((stg) => (
                 <div key={stg.stage} className="font-mono">
-                  {stg.stage} · 相关维度：{stg.relevantDimension === 'shape' ? '图形' : '线条'} · 强化项位于配对索引{' '}
-                  {stg.reinforcedIndexInPair}（屏幕左右位置每试次随机） · {stg.description}
+                  {t('ided.researcher.stageLine', {
+                    stage: stg.stage,
+                    dimension: t(
+                      stg.relevantDimension === 'shape'
+                        ? 'ided.researcher.dimension.shape'
+                        : 'ided.researcher.dimension.line'
+                    ),
+                    index: stg.reinforcedIndexInPair,
+                    description: t(stg.descriptionKey),
+                  })}
                 </div>
               ))}
             </div>
@@ -381,11 +401,14 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
         {/* Stage Timeline */}
         <div className="mt-5 pt-4 border-t border-slate-100">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-600 mb-2">
-            <span>阶段演进 (Stages Progression)</span>
+            <span>{t('ided.timeline.title')}</span>
             <span className="font-mono text-indigo-600">
               {failedStage
-                ? `已在 ${failedStage} 阶段达到 ${MAX_TRIALS_PER_STAGE} 次上限`
-                : `阶段 ${Math.min(stagesCompleted + 1, 7)} / 7`}
+                ? t('ided.timeline.failed', { stage: failedStage, maxTrials: MAX_TRIALS_PER_STAGE })
+                : t('ided.timeline.current', {
+                    current: Math.min(stagesCompleted + 1, totalStages),
+                    total: totalStages,
+                  })}
             </span>
           </div>
 
@@ -414,7 +437,13 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
                 >
                   <div className="text-[11px] font-mono">{stg.stage}</div>
                   <div className="text-[9px] truncate mt-0.5">
-                    {isFailed ? '✕ 未通过' : isPast ? '✓ 达成' : isCurrent ? '当前进行' : '未开始'}
+                    {isFailed
+                      ? t('ided.stageStatus.failed')
+                      : isPast
+                      ? t('ided.stageStatus.passed')
+                      : isCurrent
+                      ? t('ided.stageStatus.current')
+                      : t('ided.stageStatus.pending')}
                   </div>
                 </li>
               );
@@ -425,32 +454,33 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
         {/* Real-time stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3 border-t border-slate-100">
           <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-            <span className="text-[11px] text-slate-500 block">总错误数</span>
+            <span className="text-[11px] text-slate-500 block">{t('ided.stat.totalErrors')}</span>
             <span className="text-lg font-bold font-mono text-slate-900">{stats.totalErrors}</span>
           </div>
           <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-            <span className="text-[11px] text-slate-500 block">IDS 维度内错误</span>
+            <span className="text-[11px] text-slate-500 block">{t('ided.stat.idsErrors')}</span>
             <span className="text-lg font-bold font-mono text-slate-700">{stats.idsErrors}</span>
           </div>
           <div className="bg-rose-50/60 p-2.5 rounded-lg border border-rose-100">
-            <span className="text-[11px] text-rose-700 block font-medium">EDS 维度间错误</span>
+            <span className="text-[11px] text-rose-700 block font-medium">{t('ided.stat.edsErrors')}</span>
             <span className="text-lg font-bold font-mono text-rose-700">{stats.edsErrors}</span>
           </div>
           <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-            <span className="text-[11px] text-slate-500 block">EDS 定势转移代价</span>
+            <span className="text-[11px] text-slate-500 block">{t('ided.stat.edsShiftCost')}</span>
             <span className="text-lg font-bold font-mono text-indigo-700">{stats.edsShiftCost}</span>
-            <span className="text-[10px] text-slate-400 block">EDS 错误 − IDS 错误</span>
+            <span className="text-[10px] text-slate-400 block">{t('ided.stat.edsShiftCostFormula')}</span>
           </div>
         </div>
 
         <p className="mt-3 text-[11px] text-slate-500">
-          键盘操作：<kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">←</kbd> /{' '}
-          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">A</kbd> 选择左侧，
+          {t('ided.keyboard.intro')}
+          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">←</kbd> /{' '}
+          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">A</kbd>
+          {t('ided.keyboard.left')}
           <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px] ml-1">→</kbd> /{' '}
-          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">B</kbd> 选择右侧。
-          <span className="ml-1 text-slate-400">
-            注：转移代价为 EDS 错误数减去 IDS 错误数，当受试者在两个阶段都几乎不出错（或都停留在随机水平）时该差值会接近 0，需结合 EDS 是否通过一起判读。
-          </span>
+          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">B</kbd>
+          {t('ided.keyboard.right')}
+          <span className="ml-1 text-slate-400">{joinList(['ided.note.shiftCostA', 'ided.note.shiftCostB'])}</span>
         </p>
       </div>
 
@@ -465,11 +495,13 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
             {/* Stage info (no rule-revealing copy for participants) */}
             <div className="mb-6 inline-flex flex-col items-center">
               <span className="px-3 py-1 bg-slate-800 rounded-full text-xs font-mono text-indigo-300 border border-slate-700 mb-1.5">
-                第 {stagesCompleted + 1} / 7 阶段 · {currentStageDef.stage}
+                {t('ided.hud.stage', {
+                  current: stagesCompleted + 1,
+                  total: totalStages,
+                  stage: currentStageDef.stage,
+                })}
               </span>
-              <p className="text-xs text-slate-400 max-w-md">
-                请依据“正确 / 错误”反馈学习本阶段应选择哪一个刺激；正确的一侧（左或右）每试次随机改变。
-              </p>
+              <p className="text-xs text-slate-400 max-w-md">{t('ided.hud.instruction')}</p>
             </div>
 
             {/* Stage progress towards 6 consecutive correct + cap */}
@@ -477,13 +509,16 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
               <div
                 className="flex items-center justify-center gap-1.5"
                 role="progressbar"
-                aria-label="本阶段晋级进度（连续正确次数）"
+                aria-label={t('ided.progress.criterionAria')}
                 aria-valuemin={0}
                 aria-valuemax={currentStageDef.consecutiveRequired}
                 aria-valuenow={consecutiveCorrect}
-                aria-valuetext={`连续正确 ${consecutiveCorrect} / ${currentStageDef.consecutiveRequired}`}
+                aria-valuetext={t('ided.progress.criterionValue', {
+                  current: consecutiveCorrect,
+                  required: currentStageDef.consecutiveRequired,
+                })}
               >
-                <span className="text-xs text-slate-400 mr-2">晋级进度:</span>
+                <span className="text-xs text-slate-400 mr-2">{t('ided.progress.criterionLabel')}</span>
                 {Array.from({ length: currentStageDef.consecutiveRequired }).map((_, i) => (
                   <div
                     key={i}
@@ -500,11 +535,14 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
               <div
                 className="mt-2 h-1.5 w-full bg-slate-800 rounded-full overflow-hidden"
                 role="progressbar"
-                aria-label="本阶段已用试验数"
+                aria-label={t('ided.progress.trialsAria')}
                 aria-valuemin={0}
                 aria-valuemax={MAX_TRIALS_PER_STAGE}
                 aria-valuenow={stats.trialsInCurrentStage}
-                aria-valuetext={`本阶段已用 ${stats.trialsInCurrentStage} / ${MAX_TRIALS_PER_STAGE} 次试验`}
+                aria-valuetext={t('ided.progress.trialsValue', {
+                  used: stats.trialsInCurrentStage,
+                  maxTrials: MAX_TRIALS_PER_STAGE,
+                })}
               >
                 <div
                   className="h-full bg-indigo-500"
@@ -512,7 +550,10 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
                 />
               </div>
               <p className="text-[11px] text-slate-400 mt-1 font-mono">
-                本阶段已用 {stats.trialsInCurrentStage} / {MAX_TRIALS_PER_STAGE} 次试验（达上限即判定本阶段未通过）
+                {t('ided.progress.trialsNote', {
+                  used: stats.trialsInCurrentStage,
+                  maxTrials: MAX_TRIALS_PER_STAGE,
+                })}
               </p>
             </div>
 
@@ -521,14 +562,17 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
               {([0, 1] as const).map((side) => {
                 const stimulus = presented?.stimuli[side];
                 if (!stimulus) return null;
-                const positionName = side === 0 ? '左侧' : '右侧';
+                const positionName = side === 0 ? t('ided.side.left') : t('ided.side.right');
                 return (
                   <div key={side} className="flex flex-col items-center gap-3">
                     <div
                       role="button"
                       tabIndex={isLocked ? -1 : 0}
                       aria-disabled={isLocked}
-                      aria-label={`选择${positionName}刺激：${describeIDEDStimulus(stimulus)}`}
+                      aria-label={t('ided.select.aria', {
+                        side: positionName,
+                        description: describeIDEDStimulus(stimulus, lang),
+                      })}
                       onClick={() => handleSelect(side)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
@@ -547,7 +591,7 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
                       disabled={isLocked}
                       className="px-4 py-1.5 bg-slate-800 hover:bg-indigo-600 rounded-lg text-xs font-semibold text-slate-200 transition-colors border border-slate-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      选择{positionName}刺激 ({side === 0 ? 'A' : 'B'})
+                      {t('ided.select.button', { side: positionName, key: side === 0 ? 'A' : 'B' })}
                     </button>
                   </div>
                 );
@@ -562,61 +606,68 @@ export const IDEDView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
               {lastFeedback ? (
                 lastFeedback.isCorrect ? (
                   <span className="text-emerald-400 text-sm font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> 反应正确 (Correct)
-                    {lastFeedback.stageAdvanced && <span className="ml-2 text-indigo-300">已晋级下一阶段</span>}
+                    <CheckCircle2 className="w-4 h-4" aria-hidden="true" /> {t('ided.feedback.correct')}
+                    {lastFeedback.stageAdvanced && (
+                      <span className="ml-2 text-indigo-300">{t('ided.feedback.advanced')}</span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-rose-400 text-sm font-bold flex items-center gap-1">
-                    <ShieldAlert className="w-4 h-4" aria-hidden="true" /> 反应错误 (Incorrect)
+                    <ShieldAlert className="w-4 h-4" aria-hidden="true" /> {t('ided.feedback.incorrect')}
                   </span>
                 )
               ) : (
-                <span className="text-xs text-slate-500">等待您的第一次选择…</span>
+                <span className="text-xs text-slate-500">{t('ided.feedback.waiting')}</span>
               )}
             </div>
           </div>
         ) : failedStage ? (
           <div className="py-10">
             <ShieldAlert className="w-12 h-12 text-rose-400 mx-auto mb-3" aria-hidden="true" />
-            <h3 className="text-xl font-bold text-slate-100">测验终止：{failedStage} 阶段达到 {MAX_TRIALS_PER_STAGE} 次试验上限</h3>
+            <h3 className="text-xl font-bold text-slate-100">
+              {t('ided.fail.title', { stage: failedStage, maxTrials: MAX_TRIALS_PER_STAGE })}
+            </h3>
             <p className="text-xs text-slate-300 max-w-md mx-auto mt-2">
-              该阶段在 {MAX_TRIALS_PER_STAGE} 次试验内未能达到“连续 6 次正确”的晋级标准，按 CANTAB 规则判定本阶段未通过，测验到此结束。
-              已完成的阶段与错误数已记入数据。
+              {t('ided.fail.body', {
+                maxTrials: MAX_TRIALS_PER_STAGE,
+                criterion: failedStageCriterion,
+              })}
             </p>
             <div className="mt-4 inline-grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
-                已完成阶段 <span className="font-mono font-bold">{stats.stagesCompleted}/7</span>
+                {t('ided.fail.stagesCompleted')}{' '}
+                <span className="font-mono font-bold">
+                  {stats.stagesCompleted}/{totalStages}
+                </span>
               </div>
               <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
-                总错误 <span className="font-mono font-bold">{stats.totalErrors}</span>
+                {t('ided.fail.totalErrors')} <span className="font-mono font-bold">{stats.totalErrors}</span>
               </div>
               <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
-                失败阶段错误 <span className="font-mono font-bold">{stats.failedStageErrors ?? '—'}</span>
+                {t('ided.fail.failedStageErrors')}{' '}
+                <span className="font-mono font-bold">{stats.failedStageErrors ?? '—'}</span>
               </div>
               <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
-                EDS 错误 <span className="font-mono font-bold">{stats.edsErrors}</span>
+                {t('ided.fail.edsErrors')} <span className="font-mono font-bold">{stats.edsErrors}</span>
               </div>
             </div>
             <button
               onClick={resetTest}
               className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold text-white transition-colors cursor-pointer"
             >
-              重新演练 ID/ED 任务
+              {t('ided.action.restart')}
             </button>
           </div>
         ) : (
           <div className="py-10">
             <Award className="w-12 h-12 text-emerald-400 mx-auto mb-3" aria-hidden="true" />
-            <h3 className="text-xl font-bold text-slate-100">全部 7 阶段注意定势转移通关！</h3>
-            <p className="text-xs text-slate-300 max-w-md mx-auto mt-2">
-              您在第 6 阶段完成了 Extra-Dimensional Shift (EDS)，即把注意从原相关维度转移到另一维度。
-              本结果仅为该测验内部指标，不构成临床判读。
-            </p>
+            <h3 className="text-xl font-bold text-slate-100">{t('ided.success.title', { total: totalStages })}</h3>
+            <p className="text-xs text-slate-300 max-w-md mx-auto mt-2">{t('ided.success.body')}</p>
             <button
               onClick={resetTest}
               className="mt-5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold text-white transition-colors cursor-pointer"
             >
-              重新演练 ID/ED 任务
+              {t('ided.action.restart')}
             </button>
           </div>
         )}

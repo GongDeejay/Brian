@@ -1,6 +1,36 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import { SessionValidityRecord } from '../types/wm';
+import { translate, type Lang } from '../i18n';
+
+/** Same key the i18n provider persists the participant's choice under. */
+const LANG_STORAGE_KEY = 'brian.lang';
+
+/**
+ * A hook is not a component and cannot call `useI18n()`, and the unload warning
+ * must be readable even if it fires while the React tree is being torn down.
+ * The language is therefore resolved at the moment the event fires, with the
+ * same precedence as the provider and ErrorBoundary:
+ *
+ *   1. the persisted `brian.lang` choice,
+ *   2. `<html lang>` (kept in sync by the provider),
+ *   3. the browser's own language, and finally Chinese, the source catalogue.
+ *
+ * Every step is wrapped so unavailable storage (private mode, blocked cookies)
+ * degrades silently instead of throwing inside an unload handler.
+ */
+function detectLang(): Lang {
+  try {
+    const stored = window.localStorage.getItem(LANG_STORAGE_KEY);
+    if (stored === 'zh' || stored === 'en') return stored;
+  } catch {
+    // Storage unavailable — fall through to the document language.
+  }
+  const documentLang = typeof document !== 'undefined' ? document.documentElement.lang : '';
+  if (documentLang) return documentLang.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  const nav = typeof navigator !== 'undefined' ? navigator.language : 'zh';
+  return nav.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+}
 
 export interface SessionValidityStats {
   interruptions: number;
@@ -85,7 +115,7 @@ export function useFocusGuard({
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = '实验正在进行，离开页面将丢失本次测评数据。';
+      event.returnValue = translate(detectLang(), 'focus.leaveWarning');
       return event.returnValue;
     };
 

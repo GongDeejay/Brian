@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, RotateCcw, Eye, Award, HelpCircle, Activity, Zap, Settings2, Sparkles, Info, Download } from 'lucide-react';
 import { ChangeDetectionConfig, ChangeDetectionResult, ChangeDetectionTrial, ColorSquare, TaskFeedbackMode } from '../types/wm';
-import { calculateCowanK, evaluateKScore } from '../utils/statistics';
+import { calculateCowanK, evaluateKScore, type KEvalBand } from '../utils/statistics';
 import { soundManager } from '../utils/audio';
 import { shuffled } from '../utils/random';
 import { sampleMemoryColors, pickChangeColor } from '../utils/color';
@@ -11,6 +11,7 @@ import { useTaskTimers } from '../hooks/useTaskTimers';
 import { useFocusGuard } from '../hooks/useFocusGuard';
 import { ProgressBar } from './ProgressBar';
 import { AbortControl } from './AbortControl';
+import { useI18n, type MessageKey } from '../i18n';
 
 interface ChangeDetectionTaskProps {
   onSaveResult: (result: ChangeDetectionResult) => void;
@@ -23,39 +24,71 @@ const FEEDBACK_PAUSE_MS = 600;
 /** Rough response-time allowance used only for the remaining-time readout. */
 const RESPONSE_ALLOWANCE_MS = 1000;
 
-// Predefined difficulty presets for visual change detection
+// Predefined difficulty presets for visual change detection.
+// User-facing copy lives in i18n keys (`nameKey` / `tagKey` / `descriptionKey`);
+// the numeric fields below are the actual task parameters and must not change.
 const DIFFICULTY_PRESETS = [
   {
     id: 'easy',
-    name: '新手入门',
-    tag: '容易',
+    nameKey: 'cd.preset.easy.name',
+    tagKey: 'cd.preset.easy.tag',
     sampleDurationMs: 600, // 600ms long flash
     delayDurationMs: 600, // shorter delay
     setSizes: [3, 4, 5],
     trialsPerSetSize: 4,
-    description: '延长至 600ms 观察时间，较小阵列，适合初次体验与习惯流程',
+    descriptionKey: 'cd.preset.easy.description',
   },
   {
     id: 'standard',
-    name: '经典学术',
-    tag: '标准',
+    nameKey: 'cd.preset.standard.name',
+    tagKey: 'cd.preset.standard.tag',
     sampleDurationMs: 250, // 250ms comfortable
     delayDurationMs: 900,
     setSizes: [4, 6, 8],
     trialsPerSetSize: 4,
-    description: '约 250ms 闪烁，经典 Cowan (2001) 阵列标准',
+    descriptionKey: 'cd.preset.standard.description',
   },
   {
     id: 'hard',
-    name: '极速极限',
-    tag: '极难',
+    nameKey: 'cd.preset.hard.name',
+    tagKey: 'cd.preset.hard.tag',
     sampleDurationMs: 120, // 120ms ultra fast
     delayDurationMs: 1000,
     setSizes: [4, 6, 8],
     trialsPerSetSize: 4,
-    description: '仅 120ms 超快速瞬时呈现，考验高阶神经感知与表征编码',
+    descriptionKey: 'cd.preset.hard.description',
   },
 ] as const;
+
+// Set-size options offered in the config panel (labels/descriptions are i18n keys).
+const SET_SIZE_OPTIONS = [
+  { labelKey: 'cd.setSizes.small.label', sizes: [3, 4, 5], descKey: 'cd.setSizes.small.desc' },
+  { labelKey: 'cd.setSizes.classic.label', sizes: [4, 6, 8], descKey: 'cd.setSizes.classic.desc' },
+  { labelKey: 'cd.setSizes.challenge.label', sizes: [6, 8, 10], descKey: 'cd.setSizes.challenge.desc' },
+] as const;
+
+// Tick labels under the two sliders — array copy rendered through `tList`.
+const SAMPLE_TICK_KEYS = [
+  'cd.sample.tick100',
+  'cd.sample.tick350',
+  'cd.sample.tick600',
+  'cd.sample.tick1000',
+] as const;
+const DELAY_TICK_KEYS = ['cd.delay.tick300', 'cd.delay.tick900', 'cd.delay.tick2000'] as const;
+const KEY_HINT_KEYS = ['cd.keys.sameKeys', 'cd.keys.changedKeys'] as const;
+
+/**
+ * The qualitative K band comes from `evaluateKScore` in utils/statistics.ts as a
+ * stable id (`KEvalBand`), so the copy is resolved directly from the i18n
+ * catalogue (`kEval.<band>.rating` / `.description`, see i18n/messages/utils.ts).
+ * The string reverse-lookup that used to live here is gone: it broke as soon as
+ * a single character of Chinese copy changed. The K thresholds themselves still
+ * live in exactly one place — utils/statistics.ts.
+ */
+const kEvalKeys = (band: KEvalBand): { rating: MessageKey; description: MessageKey } => ({
+  rating: `kEval.${band}.rating` as MessageKey,
+  description: `kEval.${band}.description` as MessageKey,
+});
 
 // Colour pool lives in utils/color.ts: it holds at least 2x the maximum set
 // size, so a change probe colour that is absent from the memory array always
@@ -98,6 +131,8 @@ function generateSquarePositions(count: number): { x: number; y: number }[] {
 }
 
 export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) => {
+  const { t, tList } = useI18n();
+
   const [config, setConfig] = useState<ChangeDetectionConfig>({
     setSizes: [4, 6, 8],
     trialsPerSetSize: 4, // 12 total trials (balance speed & accuracy)
@@ -298,10 +333,10 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
     if (feedbackMode === 'practice') {
       if (isCorrect) {
         soundManager.playSuccess();
-        setTrialFeedbacks('✓ 正确判定');
+        setTrialFeedbacks(t('cd.feedback.correct'));
       } else {
         soundManager.playError();
-        setTrialFeedbacks('✗ 判定失误');
+        setTrialFeedbacks(t('cd.feedback.wrong'));
       }
     }
 
@@ -313,7 +348,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
     timers.schedule(() => {
       runTrial(currentTrialIdx + 1);
     }, FEEDBACK_PAUSE_MS);
-  }, [taskState, isPaused, currentTrial, currentTrialIdx, feedbackMode, timers]);
+  }, [taskState, isPaused, currentTrial, currentTrialIdx, feedbackMode, timers, t]);
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -452,7 +487,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
   const handleExport = () => {
     if (!finalResult) return;
     downloadSessionJson(sessionFileName('change_detection'), {
-      app: '工作记忆训练与评估平台',
+      app: t('cd.export.appName'),
       task: 'change_detection',
       exportedAt: new Date().toISOString(),
       sessionDate: finalResult.date,
@@ -480,9 +515,21 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
   const perTrialMs = FIXATION_MS + config.sampleDurationMs + config.delayDurationMs + RESPONSE_ALLOWANCE_MS + FEEDBACK_PAUSE_MS;
   const remainingTrials = Math.max(0, totalTrialsCount - (currentTrialIdx + 1));
   const etaMs = currentTrialIdx >= totalTrialsCount ? 0 : remainingTrials * perTrialMs + perTrialMs;
+  const livePhaseKey: MessageKey =
+    taskState === 'fixation'
+      ? 'cd.live.phase.fixation'
+      : taskState === 'sample'
+        ? 'cd.live.phase.sample'
+        : taskState === 'delay'
+          ? 'cd.live.phase.delay'
+          : 'cd.live.phase.test';
   const liveMessage = isPaused
-    ? '实验已暂停，等待继续'
-    : `第 ${currentTrialIdx + 1} 试次，共 ${totalTrialsCount} 试次，${taskState === 'fixation' ? '注视十字' : taskState === 'sample' ? '记忆阵列呈现中' : taskState === 'delay' ? '维持期' : '请判断探针颜色是否改变'}`;
+    ? t('cd.live.paused')
+    : t('cd.live.trial', {
+        current: currentTrialIdx + 1,
+        total: totalTrialsCount,
+        phase: t(livePhaseKey),
+      });
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -492,13 +539,15 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                范式 3 · 视空间工作记忆容量极限 (K值)
+                {t('cd.badge')}
               </span>
               <span className="text-xs text-slate-400 font-mono">Cowan (2001) / Luck & Vogel (1997)</span>
             </div>
-            <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight">视觉变化检测任务 (Change Detection)</h2>
+            <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight">{t('cd.title')}</h2>
             <p className="text-xs text-slate-400 mt-1">
-              短瞬间闪烁多色方块阵列（可调节 100ms~1000ms），经历维持期间后重新呈现，判断目标方块颜色是否改变。通过公式 <strong>K = N × (H - F)</strong> 精准测定纯视觉表征容量极限。
+              {t('cd.introPre')}
+              <strong>K = N × (H - F)</strong>
+              {t('cd.introPost')}
             </p>
           </div>
 
@@ -509,7 +558,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm transition shadow-lg shadow-amber-600/25 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>开始 K值 测定</span>
+              <span>{t('cd.start')}</span>
             </button>
           )}
         </div>
@@ -523,18 +572,22 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
                 <Settings2 className="w-4 h-4 text-amber-400" />
-                <span>任务参数与难度配置</span>
+                <span>{t('cd.config.title')}</span>
               </div>
-              <span className="text-[11px] text-amber-400/90 font-mono">自由调节</span>
+              <span className="text-[11px] text-amber-400/90 font-mono">{t('cd.config.freeAdjust')}</span>
             </div>
 
             {/* Difficulty Presets */}
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-medium">难度预设 (Presets)</span>
+                <span className="text-slate-400 font-medium">{t('cd.presets.label')}</span>
                 {config.difficultyPreset && (
                   <span className="text-[10px] text-amber-400 font-mono">
-                    {config.difficultyPreset === 'easy' ? '推荐初学者' : config.difficultyPreset === 'standard' ? '学术基准' : '极限挑战'}
+                    {config.difficultyPreset === 'easy'
+                      ? t('cd.presets.hint.easy')
+                      : config.difficultyPreset === 'standard'
+                        ? t('cd.presets.hint.standard')
+                        : t('cd.presets.hint.hard')}
                   </span>
                 )}
               </div>
@@ -562,7 +615,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold">{preset.name}</span>
+                        <span className="text-xs font-bold">{t(preset.nameKey)}</span>
                         <span
                           className={`text-[9px] px-1.5 py-0.2 rounded font-medium ${
                             preset.id === 'easy'
@@ -572,11 +625,11 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                               : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                           }`}
                         >
-                          {preset.tag}
+                          {t(preset.tagKey)}
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-400 font-mono mt-1">
-                        闪烁 {preset.sampleDurationMs}ms
+                        {t('cd.preset.flash', { ms: preset.sampleDurationMs })}
                       </div>
                     </button>
                   );
@@ -589,7 +642,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  <span>刺激呈现闪烁时长 (Flash Duration)</span>
+                  <span>{t('cd.sample.label')}</span>
                 </div>
                 <span className="text-xs font-mono font-bold text-amber-400">
                   {config.sampleDurationMs} ms
@@ -613,14 +666,13 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                 className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
               />
               <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                <span>100ms (极限超快)</span>
-                <span>350ms (温和)</span>
-                <span>600ms (充裕)</span>
-                <span>1000ms (轻松)</span>
+                {tList(SAMPLE_TICK_KEYS).map((label, idx) => (
+                  <span key={idx}>{label}</span>
+                ))}
               </div>
               {/* Quick shortcut tags for common durations */}
               <div className="flex items-center gap-1.5 pt-1">
-                <span className="text-[10px] text-slate-400">快捷预选:</span>
+                <span className="text-[10px] text-slate-400">{t('cd.sample.quick')}</span>
                 {[150, 250, 400, 600, 800].map((dur) => (
                   <button
                     key={dur}
@@ -649,7 +701,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
                   <Eye className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>维持期空白间隔 (Retention Delay)</span>
+                  <span>{t('cd.delay.label')}</span>
                 </div>
                 <span className="text-xs font-mono font-bold text-indigo-400">
                   {config.delayDurationMs} ms
@@ -673,26 +725,22 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                 className="w-full accent-indigo-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
               />
               <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                <span>300ms (极短)</span>
-                <span>900ms (标准维持)</span>
-                <span>2000ms (长时衰减)</span>
+                {tList(DELAY_TICK_KEYS).map((label, idx) => (
+                  <span key={idx}>{label}</span>
+                ))}
               </div>
             </div>
 
             {/* Set Size Configuration */}
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-medium">阵列方块数量 (Set Sizes)</span>
+                <span className="text-slate-400 font-medium">{t('cd.setSizes.label')}</span>
                 <span className="text-[11px] font-mono text-amber-300 font-bold">
-                  {config.setSizes.join(', ')} 个方块
+                  {t('cd.setSizes.count', { sizes: config.setSizes.join(', ') })}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: '小阵列 [3, 4, 5]', sizes: [3, 4, 5], desc: '难度较低' },
-                  { label: '经典 [4, 6, 8]', sizes: [4, 6, 8], desc: '标准学术' },
-                  { label: '挑战 [6, 8, 10]', sizes: [6, 8, 10], desc: '高负荷' },
-                ].map((item, idx) => {
+                {SET_SIZE_OPTIONS.map((item, idx) => {
                   const isCurrent =
                     config.setSizes.length === item.sizes.length &&
                     config.setSizes.every((v, i) => v === item.sizes[i]);
@@ -713,8 +761,8 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                           : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      <div className="text-xs">{item.label}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{item.desc}</div>
+                      <div className="text-xs">{t(item.labelKey)}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{t(item.descKey)}</div>
                     </button>
                   );
                 })}
@@ -722,11 +770,13 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
             </div>
 
             {/* Feedback mode: assessment (default) vs practice */}
-            <div className="space-y-1.5" role="group" aria-label="逐试次反馈模式">
+            <div className="space-y-1.5" role="group" aria-label={t('cd.feedback.group')}>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-medium">逐试次反馈 (Feedback)</span>
+                <span className="text-slate-400 font-medium">{t('cd.feedback.label')}</span>
                 <span className="text-[10px] text-amber-400 font-mono">
-                  {feedbackMode === 'assessment' ? '评估模式（默认）' : '练习模式'}
+                  {feedbackMode === 'assessment'
+                    ? t('cd.feedback.assessmentDefault')
+                    : t('cd.feedback.practice')}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -742,21 +792,21 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                         : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {mode === 'assessment' ? '评估模式' : '练习模式'}
+                    {mode === 'assessment' ? t('cd.feedback.assessment') : t('cd.feedback.practice')}
                   </button>
                 ))}
               </div>
               <p className="text-[10px] text-slate-400 leading-relaxed">
-                评估模式不显示逐试次正误对错（标准范式做法），以免策略调整与情绪唤醒污染 K 值；练习模式保留完整的对错文本与音效。
+                {t('cd.feedback.note')}
               </p>
             </div>
 
             {/* Trials per set size */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-medium">每种阵列试次数目</span>
+                <span className="text-slate-400 font-medium">{t('cd.trials.label')}</span>
                 <span className="text-[11px] text-slate-300 font-mono">
-                  共计 {config.setSizes.length * config.trialsPerSetSize} 试次
+                  {t('cd.trials.total', { count: config.setSizes.length * config.trialsPerSetSize })}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -777,7 +827,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                         : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {count} 次 / 规模 ({count * config.setSizes.length} 轮)
+                    {t('cd.trials.option', { count, total: count * config.setSizes.length })}
                   </button>
                 ))}
               </div>
@@ -792,9 +842,11 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                   <Eye className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-white">实验交互流程与按键说明</h3>
+                  <h3 className="text-base font-semibold text-white">{t('cd.guide.title')}</h3>
                   <p className="text-xs text-slate-400">
-                    当前闪烁时长设为 <strong className="text-amber-300 font-mono">{config.sampleDurationMs} ms</strong>，若仍感觉吃力可继续在左侧延长。
+                    {t('cd.guide.flashPre')}
+                    <strong className="text-amber-300 font-mono">{config.sampleDurationMs} ms</strong>
+                    {t('cd.guide.flashPost')}
                   </p>
                 </div>
               </div>
@@ -804,30 +856,36 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                     <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px]">1</span>
-                    <span>十字注视</span>
+                    <span>{t('cd.guide.step1.title')}</span>
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    盯着画面中央 <span className="text-amber-400 font-mono font-bold">+</span> 注视点预备 (500ms)。
+                    {t('cd.guide.step1.pre')}
+                    <span className="text-amber-400 font-mono font-bold">+</span>
+                    {t('cd.guide.step1.post')}
                   </div>
                 </div>
 
                 <div className="p-3 rounded-xl bg-amber-950/20 border border-amber-500/30 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
                     <span className="w-4 h-4 rounded-full bg-amber-500/30 text-amber-200 flex items-center justify-center text-[10px]">2</span>
-                    <span>记忆闪现</span>
+                    <span>{t('cd.guide.step2.title')}</span>
                   </div>
                   <div className="text-[11px] text-amber-200/80">
-                    方块阵列闪现 <strong className="text-amber-300 font-mono">{config.sampleDurationMs}ms</strong>，迅速扫视并脑中快照。
+                    {t('cd.guide.step2.pre')}
+                    <strong className="text-amber-300 font-mono">{config.sampleDurationMs}ms</strong>
+                    {t('cd.guide.step2.post')}
                   </div>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                     <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px]">3</span>
-                    <span>探针比对</span>
+                    <span>{t('cd.guide.step3.title')}</span>
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    经 {config.delayDurationMs}ms 保持后，判断带 <span className="text-amber-400 font-bold">「?」</span> 探针方块颜色是否变化。
+                    {t('cd.guide.step3.pre', { ms: config.delayDurationMs })}
+                    <span className="text-amber-400 font-bold">{t('cd.guide.step3.mark')}</span>
+                    {t('cd.guide.step3.post')}
                   </div>
                 </div>
               </div>
@@ -836,16 +894,20 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 text-xs text-slate-300 space-y-2">
                 <div className="font-semibold text-slate-200 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>快捷键提示：</span>
+                  <span>{t('cd.keys.title')}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div className="p-2 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
-                    <span>颜色未改变 / 相同:</span>
-                    <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono font-bold">F 或 1</kbd>
+                    <span>{t('cd.keys.same')}</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono font-bold">
+                      {tList(KEY_HINT_KEYS)[0]}
+                    </kbd>
                   </div>
                   <div className="p-2 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
-                    <span>颜色已改变 / 不同:</span>
-                    <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono font-bold">J 或 2</kbd>
+                    <span>{t('cd.keys.changed')}</span>
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono font-bold">
+                      {tList(KEY_HINT_KEYS)[1]}
+                    </kbd>
                   </div>
                 </div>
               </div>
@@ -854,10 +916,12 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
                 <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
                   <HelpCircle className="w-3.5 h-3.5" />
-                  <span>Cowan's K 公式说明</span>
+                  <span>{t('cd.formula.title')}</span>
                 </div>
                 <p className="leading-relaxed">
-                  容量极限 <span className="font-mono text-amber-300 font-bold">K = N × (H - F)</span>。通过扣除虚报率 (False Alarm)，消除瞎猜猜测效应。成人常模一般为 3.0 ~ 4.5 个客体。
+                  {t('cd.formula.pre')}
+                  <span className="font-mono text-amber-300 font-bold">K = N × (H - F)</span>
+                  {t('cd.formula.post')}
                 </p>
               </div>
             </div>
@@ -868,7 +932,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               className="mt-6 w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-medium text-sm transition shadow-lg shadow-amber-600/20 flex items-center justify-center gap-2 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>按当前配置开始实验 ({totalTrialsCount} 试次)</span>
+              <span>{t('cd.startWithConfig', { count: totalTrialsCount })}</span>
             </button>
           </div>
         </div>
@@ -880,21 +944,21 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
           {/* Header Progress */}
           <div className="w-full flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-b border-slate-800 pb-3 mb-4">
             <div className="flex items-center gap-2">
-              <span>试次: <strong className="text-amber-300 font-mono">{currentTrialIdx + 1} / {totalTrialsCount}</strong></span>
+              <span>{t('cd.progress.trialLabel')} <strong className="text-amber-300 font-mono">{currentTrialIdx + 1} / {totalTrialsCount}</strong></span>
               <span className="text-slate-600" aria-hidden="true">|</span>
-              <span>阵列: <strong className="text-white font-mono">{currentTrial.setSize} 项</strong></span>
+              <span>{t('cd.progress.arrayLabel')} <strong className="text-white font-mono">{t('cd.progress.arrayItems', { count: currentTrial.setSize })}</strong></span>
               <span className="text-slate-600 hidden sm:inline" aria-hidden="true">|</span>
-              <span className="hidden sm:inline text-amber-400/80 font-mono">闪烁: {config.sampleDurationMs}ms</span>
+              <span className="hidden sm:inline text-amber-400/80 font-mono">{t('cd.progress.flash', { ms: config.sampleDurationMs })}</span>
             </div>
             <div className="flex items-center gap-3">
               {trialFeedbacks ? (
                 <span className="text-amber-400 font-semibold animate-fade-in">{trialFeedbacks}</span>
               ) : (
                 <span className="text-slate-400">
-                  {taskState === 'fixation' && '注视十字点...'}
-                  {taskState === 'sample' && `记忆彩色方块阵列 (${config.sampleDurationMs}ms)...`}
-                  {taskState === 'delay' && '大脑维持保持期...'}
-                  {taskState === 'test' && '探针位置颜色改变了吗？'}
+                  {taskState === 'fixation' && t('cd.phase.fixation')}
+                  {taskState === 'sample' && t('cd.phase.sample', { ms: config.sampleDurationMs })}
+                  {taskState === 'delay' && t('cd.phase.delay')}
+                  {taskState === 'test' && t('cd.phase.test')}
                 </span>
               )}
               <AbortControl onAbort={handleAbort} accent="amber" />
@@ -919,16 +983,16 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               role="alert"
               className="w-full mb-4 p-4 rounded-xl bg-amber-950/40 border border-amber-700/40 text-xs text-amber-200 space-y-2 text-center"
             >
-              <p className="font-semibold">检测到页面失去焦点，实验已暂停</p>
+              <p className="font-semibold">{t('cd.paused.title')}</p>
               <p className="leading-relaxed">
-                为保障测量有效性，被中断的试次将从「注视十字」阶段重新呈现；若该试次已作答，则直接进入下一试次。中断次数与累计离开时长会作为数据有效性指标随结果一并报告。
+                {t('cd.paused.body')}
               </p>
               <button
                 id="btn-cd-resume"
                 onClick={handleResume}
                 className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition cursor-pointer"
               >
-                继续实验
+                {t('cd.paused.resume')}
               </button>
             </div>
           )}
@@ -1005,8 +1069,8 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                     : 'bg-slate-900/50 text-slate-600 border border-slate-800 cursor-not-allowed'
                 }`}
               >
-                <span>颜色【未改变 / 相同】</span>
-                <span className="text-[10px] font-normal opacity-70 mt-0.5">快捷键: F 或 1</span>
+                <span>{t('cd.answer.same')}</span>
+                <span className="text-[10px] font-normal opacity-70 mt-0.5">{t('cd.answer.sameHint')}</span>
               </button>
 
               <button
@@ -1020,14 +1084,14 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
                     : 'bg-slate-900/50 text-slate-600 border border-slate-800 cursor-not-allowed'
                 }`}
               >
-                <span>颜色【已改变 / 不同】</span>
-                <span className="text-[10px] font-normal opacity-70 mt-0.5">快捷键: J 或 2</span>
+                <span>{t('cd.answer.changed')}</span>
+                <span className="text-[10px] font-normal opacity-70 mt-0.5">{t('cd.answer.changedHint')}</span>
               </button>
             </div>
             <p className="text-[11px] text-center text-slate-400">
               {hasResponded
-                ? '已记录本题作答，请等待下一试次'
-                : <>请仅关注带 <strong className="text-amber-400">黄色光环「?」</strong> 的目标方块颜色</>}
+                ? t('cd.answer.recorded')
+                : <>{t('cd.answer.probePre')}<strong className="text-amber-400">{t('cd.answer.probeMark')}</strong>{t('cd.answer.probePost')}</>}
             </p>
           </div>
         </div>
@@ -1043,10 +1107,10 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">
-                  视觉空间容量极限 (Cowan's K) 评估报告
+                  {t('cd.result.title')}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Cowan (2001) 经典视觉工作记忆独立槽位测定
+                  {t('cd.result.subtitle')}
                 </p>
               </div>
             </div>
@@ -1056,7 +1120,7 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>重新测试</span>
+              <span>{t('cd.result.restart')}</span>
             </button>
           </div>
 
@@ -1072,12 +1136,27 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
             <span>
               {finalResult.validity && !finalResult.validity.isValid ? (
                 <>
-                  数据有效性提示：本会话记录到 <strong>{finalResult.validity.interruptions}</strong> 次页面失去焦点，
-                  累计离开 <strong>{(finalResult.validity.totalAwayMs / 1000).toFixed(1)} 秒</strong>，
-                  其中 {finalResult.validity.trialRestarts} 个试次被重新呈现。解释 K 值时请考虑这些中断。
+                  {t('cd.validity.warnLead')}
+                  <strong>{finalResult.validity.interruptions}</strong>
+                  {t('cd.validity.warnInterruptions')}
+                  <strong>
+                    {t('cd.validity.warnSeconds', {
+                      seconds: (finalResult.validity.totalAwayMs / 1000).toFixed(1),
+                    })}
+                  </strong>
+                  {t('cd.validity.warnRestartsPre')}
+                  {finalResult.validity.trialRestarts}
+                  {t('cd.validity.warnRestartsPost')}
                 </>
               ) : (
-                <>数据有效性：整个会话未发生中断，焦点保持良好（反馈模式：{feedbackMode === 'assessment' ? '评估模式' : '练习模式'}）。</>
+                <>
+                  {t('cd.validity.ok', {
+                    mode:
+                      feedbackMode === 'assessment'
+                        ? t('cd.feedback.assessment')
+                        : t('cd.feedback.practice'),
+                  })}
+                </>
               )}
             </span>
           </div>
@@ -1085,14 +1164,20 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
           {/* Qualitative Evaluation Banner */}
           {(() => {
             const evalObj = evaluateKScore(finalResult.meanCowanK);
+            const evalKeys = kEvalKeys(evalObj.band);
             return (
               <div className={`p-4 rounded-xl border text-xs flex items-start gap-3 ${evalObj.badgeColor}`}>
                 <Activity className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-sm block">
-                    评估等级：{evalObj.rating} (K = {finalResult.meanCowanK.toFixed(2)})
+                    {t('cd.result.rating', {
+                      rating: t(evalKeys.rating),
+                      k: finalResult.meanCowanK.toFixed(2),
+                    })}
                   </span>
-                  <p className="opacity-90 mt-1">{evalObj.description}</p>
+                  <p className="opacity-90 mt-1">
+                    {t(evalKeys.description)}
+                  </p>
                 </div>
               </div>
             );
@@ -1101,49 +1186,49 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
           {/* Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">Cowan's K 容量极限</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('cd.result.metric.k')}</span>
               <span className="text-2xl font-bold font-mono text-amber-400">{finalResult.meanCowanK.toFixed(2)}</span>
-              <span className="text-[10px] text-slate-400 block mt-1">典型健康常模 3.0~4.5</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('cd.result.metric.kNorm')}</span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">综合辨别准确率</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('cd.result.metric.accuracy')}</span>
               <span className="text-2xl font-bold font-mono text-emerald-400">
                 {(finalResult.overallAccuracy * 100).toFixed(0)}%
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">命中率与正确拒绝</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('cd.result.metric.accuracyNote')}</span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">平均判定反应时</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('cd.result.metric.rt')}</span>
               <span className="text-2xl font-bold font-mono text-cyan-400">
                 {Math.round(finalResult.meanReactionTimeMs)}
                 <span className="text-xs text-slate-400 font-normal ml-1">ms</span>
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">提取与比对延迟</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('cd.result.metric.rtNote')}</span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">测试试次总数</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('cd.result.metric.trials')}</span>
               <span className="text-2xl font-bold font-mono text-indigo-400">{finalResult.totalTrials}</span>
-              <span className="text-[10px] text-slate-400 block mt-1">覆盖 Set Size {setSizeLabel}</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('cd.result.metric.trialsNote', { sizes: setSizeLabel })}</span>
             </div>
           </div>
 
           {/* Breakdown by Set Size Table & Capacity Curve */}
           <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 text-xs space-y-3">
-            <h4 className="font-semibold text-slate-200">不同阵列规模 (Set Size) 下的 K 值表现：</h4>
+            <h4 className="font-semibold text-slate-200">{t('cd.result.breakdown.title')}</h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {finalResult.breakdownBySetSize.map((b) => (
                 <div key={b.setSize} className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
                   <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
-                    <span className="font-semibold text-white">阵列大小 N = {b.setSize}</span>
+                    <span className="font-semibold text-white">{t('cd.result.breakdown.setSize', { n: b.setSize })}</span>
                     <span className="font-mono font-bold text-amber-400 text-sm">K = {b.cowanK.toFixed(2)}</span>
                   </div>
                   <div className="space-y-1 text-[11px] text-slate-400">
                     <div className="flex justify-between">
-                      <span>命中率 (H):</span>
+                      <span>{t('cd.result.breakdown.hitRate')}</span>
                       <span className="text-slate-200 font-mono">{b.hitRate}%</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>虚报率 (F):</span>
+                      <span>{t('cd.result.breakdown.falseAlarmRate')}</span>
                       <span className="text-slate-200 font-mono">{b.falseAlarmRate}%</span>
                     </div>
                   </div>
@@ -1159,14 +1244,14 @@ export const ChangeDetectionTask = ({ onSaveResult }: ChangeDetectionTaskProps) 
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>导出结果 (JSON)</span>
+              <span>{t('cd.result.export')}</span>
             </button>
             <button
               id="btn-cd-return-idle"
               onClick={() => setTaskState('idle')}
               className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition cursor-pointer"
             >
-              完成并返回设置
+              {t('cd.result.finish')}
             </button>
           </div>
         </div>

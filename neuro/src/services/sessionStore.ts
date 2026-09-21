@@ -7,6 +7,7 @@ import {
   TaskId,
   TestSessionRecord,
 } from '../types';
+import { translate, translateList, type Lang, type MessageKey } from '../i18n';
 
 /**
  * Session store + profile derivation.
@@ -14,9 +15,20 @@ import {
  * HARD RULE: nothing in this file may invent a measurement.
  * A dimension without a valid underlying measurement resolves to `null`
  * (rendered as 暂无数据) and is reported as unavailable in the export.
+ *
+ * i18n: this is a plain service, so it cannot use the `useI18n` hook. Every
+ * user-facing string is resolved through `translate(lang, key, vars)`.
+ * `TASK_LABELS` / `DATA_LIMITATIONS` / `LITERATURE_REFERENCES` hold message
+ * keys rather than rendered text, and take a `lang` argument at the call site.
  */
 
 export const SESSION_STORAGE_KEY = 'neuroclassify.sessions.v1';
+/**
+ * Mirrors i18n's private STORAGE_KEY (`brian.lang`). Kept in sync deliberately:
+ * non-component code (the error boundary) has to be able to read the selected
+ * language without going through the hook.
+ */
+export const LANG_STORAGE_KEY = 'brian.lang';
 /** Bounded history so sessionStorage cannot grow without limit. */
 export const MAX_STORED_SESSIONS = 40;
 
@@ -32,12 +44,25 @@ export const MIN_TRIALS = {
   prototypeTest: 6,
 } as const;
 
-export const TASK_LABELS: Record<TaskId, string> = {
-  wcst: '威斯康星卡片分类测验 (WCST)',
-  wpt: '天气预测任务 (WPT)',
-  ided: '注意定势转移测验 (ID/ED)',
-  gabor: 'Gabor 斑点分类 (RB / II)',
-  prototype: '点阵原型畸变测验 (Posner)',
+/**
+ * Task label message keys. Resolve at the call site with
+ * `t(TASK_LABELS[task])` (components) or `translate(lang, TASK_LABELS[task])`.
+ */
+export const TASK_LABELS: Record<TaskId, MessageKey> = {
+  wcst: 'session.task.wcst',
+  wpt: 'session.task.wpt',
+  ided: 'session.task.ided',
+  gabor: 'session.task.gabor',
+  prototype: 'session.task.prototype',
+};
+
+/** Compact task labels for the load-resilience comparison line. */
+const TASK_SHORT_LABELS: Record<TaskId, MessageKey> = {
+  wcst: 'session.taskShort.wcst',
+  wpt: 'session.taskShort.wpt',
+  ided: 'session.taskShort.ided',
+  gabor: 'session.taskShort.gabor',
+  prototype: 'session.taskShort.prototype',
 };
 
 const TASK_IDS: TaskId[] = ['wcst', 'wpt', 'ided', 'gabor', 'prototype'];
@@ -54,13 +79,19 @@ export function isLoadActive(config: CognitiveLoadConfig): boolean {
   );
 }
 
-export function describeLoad(config: CognitiveLoadConfig): string {
+export function describeLoad(config: CognitiveLoadConfig, lang: Lang): string {
   const parts: string[] = [];
-  if (config.timeLimitSeconds > 0) parts.push(`限时 ${config.timeLimitSeconds}s`);
-  if (config.workingMemoryDistractor) parts.push('双任务数字探测');
-  if (config.perceptualNoiseLevel > 0) parts.push(`知觉噪声 ${config.perceptualNoiseLevel}%`);
-  if (config.distractorInterference) parts.push('无关特征干扰');
-  return parts.length > 0 ? parts.join(' · ') : '标准基线（无附加负荷）';
+  if (config.timeLimitSeconds > 0) {
+    parts.push(translate(lang, 'session.load.timeLimit', { seconds: config.timeLimitSeconds }));
+  }
+  if (config.workingMemoryDistractor) parts.push(translate(lang, 'session.load.wmProbe'));
+  if (config.perceptualNoiseLevel > 0) {
+    parts.push(translate(lang, 'session.load.noise', { level: config.perceptualNoiseLevel }));
+  }
+  if (config.distractorInterference) parts.push(translate(lang, 'session.load.distractor'));
+  return parts.length > 0
+    ? parts.join(translate(lang, 'session.load.separator'))
+    : translate(lang, 'session.load.none');
 }
 
 // ---------------------------------------------------------------------------
@@ -73,49 +104,77 @@ export interface SessionRecordInput {
   loadConfig: CognitiveLoadConfig;
   metrics: ParadigmStats;
   extraMetrics?: Record<string, number | string | null>;
+  /** Language used to render the stored headline metric strings. */
+  lang: Lang;
+}
+
+interface SessionDescription {
+  accuracy: number;
+  keyMetricName: string;
+  keyMetricValue: string;
 }
 
 /**
  * The single "key metric" headline for a session, plus the overall accuracy.
  * Both are derived from measured values only.
+ *
+ * The metric name/value returned here are already rendered in `lang`; they are
+ * stored on the record so an export can be read on its own.
  */
-export function describeSession(
-  metrics: ParadigmStats
-): { accuracy: number; keyMetricName: string; keyMetricValue: string } {
+export function describeSession(metrics: ParadigmStats, lang: Lang): SessionDescription {
   switch (metrics.task) {
     case 'wcst': {
       const s = metrics.wcst;
       return {
         accuracy: s.accuracy,
-        keyMetricName: '持续性错误率 (PE Rate)',
-        keyMetricValue: `${s.perseverativeErrorRate}%（PE ${s.perseverativeErrors} 次 / 共 ${s.totalTrials} 次试验）`,
+        keyMetricName: translate(lang, 'session.metric.wcst.name'),
+        keyMetricValue: translate(lang, 'session.metric.wcst.value', {
+          rate: s.perseverativeErrorRate,
+          pe: s.perseverativeErrors,
+          total: s.totalTrials,
+        }),
       };
     }
     case 'wpt': {
       const s = metrics.wpt;
       return {
         accuracy: s.actualAccuracy,
-        keyMetricName: '最优选择率 (Optimal Rate)',
-        keyMetricValue: `${s.optimalRate}%（实际命中率 ${s.actualAccuracy}%）`,
+        keyMetricName: translate(lang, 'session.metric.wpt.name'),
+        keyMetricValue: translate(lang, 'session.metric.wpt.value', {
+          optimal: s.optimalRate,
+          hit: s.actualAccuracy,
+        }),
       };
     }
     case 'ided': {
       const s = metrics.ided;
       return {
         accuracy: s.accuracy,
-        keyMetricName: 'EDS 维度间错误数',
-        keyMetricValue: `${s.edsErrors} 次（完成阶段 ${s.stagesCompleted}/7${
-          s.failedStage ? `，${s.failedStage} 阶段达到 ${s.maxTrialsPerStage} 次上限未通过` : ''
-        }）`,
+        keyMetricName: translate(lang, 'session.metric.ided.name'),
+        keyMetricValue: translate(lang, 'session.metric.ided.value', {
+          errors: s.edsErrors,
+          stages: s.stagesCompleted,
+          tail: s.failedStage
+            ? translate(lang, 'session.metric.ided.failedTail', {
+                stage: s.failedStage,
+                max: s.maxTrialsPerStage,
+              })
+            : '',
+        }),
       };
     }
     case 'gabor': {
       const s = metrics.gabor;
       return {
         accuracy: s.accuracy,
-        keyMetricName: '信息整合 (II) 条件正确率',
+        keyMetricName: translate(lang, 'session.metric.gabor.name'),
         keyMetricValue:
-          s.ii.accuracy === null ? '未测得（本次未完成 II 条件试验）' : `${s.ii.accuracy}%（${s.ii.trials} 次试验）`,
+          s.ii.accuracy === null
+            ? translate(lang, 'session.metric.gabor.notMeasured')
+            : translate(lang, 'session.metric.gabor.value', {
+                accuracy: s.ii.accuracy,
+                trials: s.ii.trials,
+              }),
       };
     }
     case 'prototype':
@@ -123,15 +182,19 @@ export function describeSession(
       const s = metrics.prototype;
       return {
         accuracy: s.overallAccuracy,
-        keyMetricName: '原型优势效应 (Prototype Enhancement)',
-        keyMetricValue: `${signed(s.prototypeEnhancementEffect, 0)}pp（原型 ${s.prototypeAccuracy}% / 新畸变 ${s.novelDistortionAccuracy}%）`,
+        keyMetricName: translate(lang, 'session.metric.prototype.name'),
+        keyMetricValue: translate(lang, 'session.metric.prototype.value', {
+          effect: signed(s.prototypeEnhancementEffect, 0),
+          proto: s.prototypeAccuracy,
+          novel: s.novelDistortionAccuracy,
+        }),
       };
     }
   }
 }
 
 export function createSessionRecord(input: SessionRecordInput): TestSessionRecord {
-  const described = describeSession(input.metrics);
+  const described = describeSession(input.metrics, input.lang);
   return {
     id: `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
@@ -204,7 +267,14 @@ function latestOf(sessions: TestSessionRecord[], task: TaskId): TestSessionRecor
 
 const UNAVAILABLE = (reason: string): ProfileDimension['explanation'] => reason;
 
-export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
+/**
+ * Derives the six profile dimensions.
+ *
+ * The score arithmetic is untouched by i18n: `lang` only selects the language
+ * of the label / brain / explanation / detail strings that travel with a
+ * dimension. Every number still traces back to a stored measurement.
+ */
+export function computeProfile(sessions: TestSessionRecord[], lang: Lang): ProfileResult {
   const dimensions: ProfileDimension[] = [];
 
   // 1) WCST — prefrontal flexibility --------------------------------------
@@ -213,8 +283,8 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     const stats = record && record.metrics.task === 'wcst' ? record.metrics.wcst : null;
     const dim: ProfileDimension = {
       key: 'prefrontalFlexibility',
-      label: '前额叶灵活性 (WCST)',
-      brain: '背外侧前额叶 (DLPFC)',
+      label: translate(lang, 'session.dim.prefrontalFlexibility.label'),
+      brain: translate(lang, 'session.dim.prefrontalFlexibility.brain'),
       score: null,
       available: false,
       explanation: '',
@@ -222,18 +292,27 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     };
     if (!stats || stats.totalTrials < MIN_TRIALS.wcst) {
       dim.explanation = UNAVAILABLE(
-        `暂无数据：需要一个至少 ${MIN_TRIALS.wcst} 次试验的 WCST 完整记录（当前${
-          stats ? `仅 ${stats.totalTrials} 次` : '无记录'
-        }）`
+        translate(lang, 'session.unavailable.wcst', {
+          min: MIN_TRIALS.wcst,
+          status: stats
+            ? translate(lang, 'session.unavailable.wcst.have', { trials: stats.totalTrials })
+            : translate(lang, 'session.unavailable.wcst.none'),
+        })
       );
     } else {
       const categoryPart = (stats.categoriesCompleted / 6) * 100;
       const pePenalty = Math.min(100, stats.perseverativeErrorRate * 3);
       dim.score = Math.round(clamp(categoryPart * 0.6 + (100 - pePenalty) * 0.4));
       dim.available = true;
-      dim.explanation =
-        '完成分类数（权重 60%）与持续性错误率（权重 40%，PE 率 33% 时该项计 0 分）的加权内部指数';
-      dim.detail = `${stats.totalTrials} 次试验 · 完成分类 ${stats.categoriesCompleted}/6 · PE ${stats.perseverativeErrors} 次 (${stats.perseverativeErrorRate}%) · 非持续错误 ${stats.nonPerseverativeErrors} 次 · 未反应 ${stats.omissions} 次`;
+      dim.explanation = translate(lang, 'session.explain.wcst');
+      dim.detail = translate(lang, 'session.detail.wcst', {
+        trials: stats.totalTrials,
+        categories: stats.categoriesCompleted,
+        pe: stats.perseverativeErrors,
+        peRate: stats.perseverativeErrorRate,
+        npe: stats.nonPerseverativeErrors,
+        omissions: stats.omissions,
+      });
     }
     dimensions.push(dim);
   }
@@ -244,8 +323,8 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     const stats = record && record.metrics.task === 'wpt' ? record.metrics.wpt : null;
     const dim: ProfileDimension = {
       key: 'striatalImplicitExtraction',
-      label: '基底节内隐提取 (WPT)',
-      brain: '纹状体 / 基底核 (Striatum)',
+      label: translate(lang, 'session.dim.striatalImplicitExtraction.label'),
+      brain: translate(lang, 'session.dim.striatalImplicitExtraction.brain'),
       score: null,
       available: false,
       explanation: '',
@@ -253,20 +332,28 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     };
     if (!stats || stats.totalTrials < MIN_TRIALS.wpt) {
       dim.explanation = UNAVAILABLE(
-        `暂无数据：需要一个至少 ${MIN_TRIALS.wpt} 次试验的 WPT 完整记录（当前${
-          stats ? `仅 ${stats.totalTrials} 次` : '无记录'
-        }）`
+        translate(lang, 'session.unavailable.wpt', {
+          min: MIN_TRIALS.wpt,
+          status: stats
+            ? translate(lang, 'session.unavailable.wpt.have', { trials: stats.totalTrials })
+            : translate(lang, 'session.unavailable.wpt.none'),
+        })
       );
     } else {
       const first = stats.blockAccuracies[0]?.optimalRate ?? null;
       const last = stats.blockAccuracies[stats.blockAccuracies.length - 1]?.optimalRate ?? null;
       dim.score = stats.basalGangliaImplicitIndex;
       dim.available = true;
-      dim.explanation =
-        '直接采用 WPT 引擎的内隐指数（最优选择率占 70%、末区块相对首区块的学习增益占 30%，引擎内截断于 10–98）';
-      dim.detail = `${stats.totalTrials} 次试验 · 最优选择率 ${stats.optimalRate}% · 实际命中率 ${stats.actualAccuracy}%${
-        first !== null && last !== null ? ` · 首/末区块最优率 ${first}% → ${last}%` : ''
-      }`;
+      dim.explanation = translate(lang, 'session.explain.wpt');
+      dim.detail = translate(lang, 'session.detail.wpt', {
+        trials: stats.totalTrials,
+        optimal: stats.optimalRate,
+        accuracy: stats.actualAccuracy,
+        blocks:
+          first !== null && last !== null
+            ? translate(lang, 'session.detail.wpt.blocks', { first, last })
+            : '',
+      });
     }
     dimensions.push(dim);
   }
@@ -277,26 +364,35 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     const stats = record && record.metrics.task === 'ided' ? record.metrics.ided : null;
     const dim: ProfileDimension = {
       key: 'attentionalSetShifting',
-      label: '注意定势转移 (ID/ED)',
-      brain: '外侧前额叶 / 眶额叶 (OFC)',
+      label: translate(lang, 'session.dim.attentionalSetShifting.label'),
+      brain: translate(lang, 'session.dim.attentionalSetShifting.brain'),
       score: null,
       available: false,
       explanation: '',
       detail: '',
     };
     if (!stats || stats.stagesCompleted + (stats.failedStage ? 1 : 0) < 1) {
-      dim.explanation = UNAVAILABLE('暂无数据：需要一段完成至少 1 个 ID/ED 阶段的记录');
+      dim.explanation = UNAVAILABLE(translate(lang, 'session.unavailable.ided'));
     } else {
       const stagePart = (stats.stagesCompleted / 7) * 100 * 0.7;
       const edsBonus = stats.passedEDS ? 30 : 0;
       const shiftPenalty = Math.min(30, stats.edsShiftCost * 5);
       dim.score = Math.round(clamp(stagePart + edsBonus - shiftPenalty));
       dim.available = true;
-      dim.explanation =
-        '阶段完成度（满分 70 分）+ 通过 EDS 奖励 30 分 − EDS/IDS 转移代价惩罚（每 1 次扣 5 分，上限 30 分）';
-      dim.detail = `完成 ${stats.stagesCompleted}/7 阶段 · EDS 错误 ${stats.edsErrors} 次 · IDS 错误 ${stats.idsErrors} 次 · 转移代价 ${stats.edsShiftCost} · 总错误 ${stats.totalErrors} 次${
-        stats.failedStage ? ` · ${stats.failedStage} 阶段达 ${stats.maxTrialsPerStage} 次上限未通过` : ''
-      }`;
+      dim.explanation = translate(lang, 'session.explain.ided');
+      dim.detail = translate(lang, 'session.detail.ided', {
+        stages: stats.stagesCompleted,
+        edsErrors: stats.edsErrors,
+        idsErrors: stats.idsErrors,
+        shiftCost: stats.edsShiftCost,
+        totalErrors: stats.totalErrors,
+        tail: stats.failedStage
+          ? translate(lang, 'session.detail.ided.failedTail', {
+              stage: stats.failedStage,
+              max: stats.maxTrialsPerStage,
+            })
+          : '',
+      });
     }
     dimensions.push(dim);
   }
@@ -307,8 +403,8 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     const stats = record && record.metrics.task === 'prototype' ? record.metrics.prototype : null;
     const dim: ProfileDimension = {
       key: 'perceptualPrototypeAbstraction',
-      label: '原型模式抽象 (Posner)',
-      brain: '腹侧视觉通路 (IT Cortex)',
+      label: translate(lang, 'session.dim.perceptualPrototypeAbstraction.label'),
+      brain: translate(lang, 'session.dim.perceptualPrototypeAbstraction.brain'),
       score: null,
       available: false,
       explanation: '',
@@ -321,18 +417,26 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
       stats.novelDistortionTrialCount >= 1;
     if (!enoughTestTrials || !stats) {
       dim.explanation = UNAVAILABLE(
-        `暂无数据：测试阶段需要 ≥${MIN_TRIALS.prototypeTest} 次试验，且同时包含未见原型与新畸变试次（当前测试 ${
-          stats?.testTrialCount ?? 0
-        } 次 / 原型 ${stats?.prototypeTrialCount ?? 0} 次 / 新畸变 ${stats?.novelDistortionTrialCount ?? 0} 次）`
+        translate(lang, 'session.unavailable.prototype', {
+          min: MIN_TRIALS.prototypeTest,
+          tests: stats?.testTrialCount ?? 0,
+          proto: stats?.prototypeTrialCount ?? 0,
+          novel: stats?.novelDistortionTrialCount ?? 0,
+        })
       );
     } else {
       dim.score = Math.round(clamp(50 + stats.prototypeEnhancementEffect));
       dim.available = true;
-      dim.explanation = '以“原型正确率 − 新畸变正确率”（原型优势效应）线性映射：50 分 = 无优势，每 +1pp 加 1 分';
-      dim.detail = `学习阶段正确率 ${stats.learningAccuracy}%（${stats.learningTrialCount} 次）· 未见原型 ${stats.prototypeAccuracy}%（${stats.prototypeTrialCount} 次）· 新畸变 ${stats.novelDistortionAccuracy}%（${stats.novelDistortionTrialCount} 次）· 优势 ${signed(
-        stats.prototypeEnhancementEffect,
-        0
-      )}pp`;
+      dim.explanation = translate(lang, 'session.explain.prototype');
+      dim.detail = translate(lang, 'session.detail.prototype', {
+        learning: stats.learningAccuracy,
+        learningTrials: stats.learningTrialCount,
+        proto: stats.prototypeAccuracy,
+        protoTrials: stats.prototypeTrialCount,
+        novel: stats.novelDistortionAccuracy,
+        novelTrials: stats.novelDistortionTrialCount,
+        effect: signed(stats.prototypeEnhancementEffect, 0),
+      });
     }
     dimensions.push(dim);
   }
@@ -343,8 +447,8 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     const stats = record && record.metrics.task === 'gabor' ? record.metrics.gabor : null;
     const dim: ProfileDimension = {
       key: 'informationIntegrationMastery',
-      label: '非言语信息整合 (Gabor)',
-      brain: '皮层-纹状体突触 (COVIS)',
+      label: translate(lang, 'session.dim.informationIntegrationMastery.label'),
+      brain: translate(lang, 'session.dim.informationIntegrationMastery.brain'),
       score: null,
       available: false,
       explanation: '',
@@ -352,17 +456,26 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     };
     if (!stats || stats.ii.trials < MIN_TRIALS.gaborPerCondition || stats.ii.accuracy === null) {
       dim.explanation = UNAVAILABLE(
-        `暂无数据：需要至少 ${MIN_TRIALS.gaborPerCondition} 次信息整合 (II) 条件试验（当前 ${
-          stats?.ii.trials ?? 0
-        } 次）`
+        translate(lang, 'session.unavailable.gabor', {
+          min: MIN_TRIALS.gaborPerCondition,
+          trials: stats?.ii.trials ?? 0,
+        })
       );
     } else {
       dim.score = stats.ii.accuracy;
       dim.available = true;
-      dim.explanation = '直接采用信息整合 (II) 条件正确率（百分制，随机猜测水平 = 50 分），未做常模或阈值校正';
-      dim.detail = `II 条件 ${stats.ii.accuracy}%（${stats.ii.trials} 次）· RB 条件 ${
-        stats.rb.accuracy === null ? '未测得' : `${stats.rb.accuracy}%（${stats.rb.trials} 次）`
-      }`;
+      dim.explanation = translate(lang, 'session.explain.gabor');
+      dim.detail = translate(lang, 'session.detail.gabor', {
+        ii: stats.ii.accuracy,
+        iiTrials: stats.ii.trials,
+        rb:
+          stats.rb.accuracy === null
+            ? translate(lang, 'session.detail.gabor.notMeasured')
+            : translate(lang, 'session.detail.gabor.rbValue', {
+                accuracy: stats.rb.accuracy,
+                trials: stats.rb.trials,
+              }),
+      });
     }
     dimensions.push(dim);
   }
@@ -371,8 +484,8 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
   {
     const dim: ProfileDimension = {
       key: 'cognitiveLoadResilience',
-      label: '高负荷抗压度 (Load)',
-      brain: '前扣带回皮层 (ACC)',
+      label: translate(lang, 'session.dim.cognitiveLoadResilience.label'),
+      brain: translate(lang, 'session.dim.cognitiveLoadResilience.brain'),
       score: null,
       available: false,
       explanation: '',
@@ -395,17 +508,21 @@ export function computeProfile(sessions: TestSessionRecord[]): ProfileResult {
     });
 
     if (deltas.length === 0) {
-      dim.explanation = UNAVAILABLE(
-        '暂无数据：需要在同一任务下同时具备“标准基线”与至少一项负荷开关（限时/双任务/噪声/干扰）的完整记录，才能比较负荷前后正确率'
-      );
+      dim.explanation = UNAVAILABLE(translate(lang, 'session.unavailable.load'));
     } else {
       const meanDelta = deltas.reduce((acc, d) => acc + d.delta, 0) / deltas.length;
       dim.score = Math.round(clamp(70 + meanDelta * 2));
       dim.available = true;
-      dim.explanation = '以 70 分为“负荷下无差异”基准，正确率每变化 1 个百分点计 ±2 分（线性近似）';
-      dim.detail = `比较任务：${deltas
-        .map((d) => `${TASK_LABELS[d.task].split(' ')[0]} ${signed(d.delta)}pp`)
-        .join('、')} · 平均 ${signed(meanDelta)}pp`;
+      dim.explanation = translate(lang, 'session.explain.load');
+      // Language-neutral join; the "task +Δpp" fragments already carry their own
+      // spacing and sign, so both zh and en read correctly here.
+      const taskParts = deltas.map(
+        (d) => `${translate(lang, TASK_SHORT_LABELS[d.task])} ${signed(d.delta)}pp`
+      );
+      dim.detail = translate(lang, 'session.detail.load', {
+        tasks: taskParts.join(translate(lang, 'session.load.separator')),
+        mean: signed(meanDelta),
+      });
     }
     dimensions.push(dim);
   }
@@ -446,6 +563,8 @@ export interface ExportedReport {
   app: string;
   reportSchema: string;
   generatedAt: string;
+  /** Language the human-readable fields of this report were rendered in. */
+  lang: Lang;
   dataStatus: 'insufficient' | 'partial' | 'complete';
   dataStatusNote: string;
   cognitiveLoadConfig: CognitiveLoadConfig;
@@ -462,17 +581,24 @@ export interface ExportedReport {
   literatureReferences: string[];
 }
 
-export const DATA_LIMITATIONS: string[] = [
-  '本系统不提供任何临床常模：所有 0–100 数值均为本系统内部指数，未经年龄/教育/性别校正，不具备诊断效力，不能替代标准化临床评估。',
-  'WCST：使用 Heaton 标准的 128 卡（两副完整 64 张牌组）与最多 6 个分类的上限，规则转换为“连续 10 次正确”；但未实现手工施测程序与部分计分衍生指标（如学习到学会、60 卡后停止规则），卡组顺序为程序伪随机生成而非标准固定顺序。',
-  '反应时：仅测量“刺激呈现至按键”的浏览器端时间，包含显示器刷新、输入设备与事件调度延迟，未做硬件时标校准；未反应的试次（omission）不产生反应时。',
-  'Gabor：条纹以像素频率生成，未按视角（cycles/degree）标定，屏幕尺寸与观看距离不受控，也未实现阶梯法/恒定刺激法的阈值测量，因此空间频率与对比度不具备跨设备可比性。',
-  'ID/ED：阶段内正确维度示例固定、无关维度随机变化，左右位置逐试次随机化；刺激为简化几何图形而非 CANTAB 标准刺激集；每阶段上限 50 次试验，达上限即判定该阶段未通过；未实现 CD_D 阶段。',
-  '原型畸变：测试阶段使用固定的平衡序列（无反馈），学习阶段为交替平衡序列；点阵扰动为高斯微扰，σ 未经心理测量学标定。',
-  '认知负荷操控：知觉噪声为像素级叠加、无关特征干扰为静态图形叠加，均未做操控效度检验；双任务为 3 位数字瞬时保持的简化版本。',
-  '数据仅保存在当前浏览器的 sessionStorage 中（上限 40 条），关闭标签页即清除，不上传、不跨设备汇总，也不做去重或受试者编号管理。',
+/**
+ * Data limitations, as message keys. Research-integrity statement: render every
+ * entry with `tList(DATA_LIMITATIONS)` (components) or
+ * `translateList(lang, DATA_LIMITATIONS)` (services / exports). Do not drop or
+ * soften an entry.
+ */
+export const DATA_LIMITATIONS: MessageKey[] = [
+  'session.limitation.normative',
+  'session.limitation.wcst',
+  'session.limitation.reactionTime',
+  'session.limitation.gabor',
+  'session.limitation.ided',
+  'session.limitation.prototype',
+  'session.limitation.loadManipulation',
+  'session.limitation.storage',
 ];
 
+/** Bibliographic entries: identical in both languages (standard citation format). */
 export const LITERATURE_REFERENCES: string[] = [
   'Grant, D. A., & Berg, E. (1948). A behavioral analysis of degree of reinforcement and ease of shifting to new responses in a Weigl-type card-sorting problem. Journal of Experimental Psychology, 38(4), 404-411.',
   'Heaton, R. K., Chelune, G. J., Talley, J. L., Kay, G. G., & Curtiss, G. (1993). Wisconsin Card Sorting Test Manual: Revised and Expanded. Psychological Assessment Resources.',
@@ -482,8 +608,12 @@ export const LITERATURE_REFERENCES: string[] = [
   'Posner, M. I., & Keele, S. W. (1968). On the genesis of abstract ideas. Journal of Experimental Psychology, 77(3), 353-363.',
 ];
 
-export function buildReport(sessions: TestSessionRecord[], cognitiveLoad: CognitiveLoadConfig): ExportedReport {
-  const profileResult = computeProfile(sessions);
+export function buildReport(
+  sessions: TestSessionRecord[],
+  cognitiveLoad: CognitiveLoadConfig,
+  lang: Lang
+): ExportedReport {
+  const profileResult = computeProfile(sessions, lang);
   const unavailable = profileResult.unavailableLabels;
 
   const dataStatus: ExportedReport['dataStatus'] =
@@ -493,17 +623,21 @@ export function buildReport(sessions: TestSessionRecord[], cognitiveLoad: Cognit
       ? 'partial'
       : 'complete';
 
-  const dataStatusNote =
+  const dataStatusNote = translate(
+    lang,
     dataStatus === 'insufficient'
-      ? '数据不足：本报告中没有任何维度具备可解释的最小样本量，因此不存在任何能力分数或临床结论。请先完成至少一项完整测验。'
+      ? 'report.status.insufficient'
       : dataStatus === 'partial'
-      ? `部分数据：${unavailable.length} 个维度缺少可解释的最小样本量，这些维度在报告中为 null 并已逐条说明原因；其余维度由实际测量值计算。`
-      : '数据完整：全部 6 个维度均由实际测量值计算得出。';
+      ? 'report.status.partial'
+      : 'report.status.complete',
+    { count: unavailable.length }
+  );
 
   return {
-    app: 'NeuroClassify 认知神经科学分类与模式识别测评系统',
+    app: translate(lang, 'report.app'),
     reportSchema: 'neuroclassify-report/2.0',
     generatedAt: new Date().toISOString(),
+    lang,
     dataStatus,
     dataStatusNote,
     cognitiveLoadConfig: cognitiveLoad,
@@ -515,12 +649,11 @@ export function buildReport(sessions: TestSessionRecord[], cognitiveLoad: Cognit
     compositeSampleCount: profileResult.compositeSampleCount,
     dimensionsUnavailable: unavailable,
     notProvided: {
-      clinicalIndicators:
-        '本系统不产生临床判定语句（如“正常”“优异”“极低耗损”）。此类结论需要标准化常模与临床访谈，工具本身无法给出。',
-      normativeComparison: '未提供常模百分位/标准分对照，因为没有本工具对应的常模数据。',
-      diagnosis: '本工具为科研与教学演示用途，不用于诊断、分级或任何临床决策。',
+      clinicalIndicators: translate(lang, 'report.notProvided.clinicalIndicators'),
+      normativeComparison: translate(lang, 'report.notProvided.normativeComparison'),
+      diagnosis: translate(lang, 'report.notProvided.diagnosis'),
     },
-    limitations: DATA_LIMITATIONS,
+    limitations: translateList(lang, DATA_LIMITATIONS),
     literatureReferences: LITERATURE_REFERENCES,
   };
 }

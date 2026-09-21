@@ -12,6 +12,7 @@ import {
 import { DistractorOverlay } from './DistractorOverlay';
 import { audioFeedback } from '../services/audioService';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { useI18n, type MessageKey } from '../i18n';
 import { RotateCcw, CheckCircle2, XCircle, Award, Play, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -45,6 +46,7 @@ function hashString(value: string): number {
 }
 
 export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, onSessionComplete }) => {
+  const { t, tList, lang } = useI18n();
   const [phase, setPhase] = useState<'learning' | 'test'>('learning');
   const [learningIndex, setLearningIndex] = useState<number>(0);
   const [testIndex, setTestIndex] = useState<number>(0);
@@ -54,7 +56,8 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
   const [lastFeedback, setLastFeedback] = useState<{ isCorrect: boolean } | null>(null);
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [renderFailed, setRenderFailed] = useState<boolean>(false);
-  const [phaseNotice, setPhaseNotice] = useState<string>('');
+  /** Message key of the current phase notice, so it follows the language switcher. */
+  const [phaseNotice, setPhaseNotice] = useState<MessageKey | ''>('');
 
   const prefersReducedMotion = usePrefersReducedMotion();
 
@@ -68,6 +71,10 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
   trialsRef.current = trials;
 
   const isTestComplete = phase === 'test' && testIndex >= testSequence.length;
+
+  /** Renders a key array as one paragraph (no separator in Chinese, a space in English). */
+  const joinList = (keys: readonly MessageKey[], vars?: Record<string, string | number>) =>
+    (vars ? keys.map((key) => t(key, vars)) : tList(keys)).join(lang === 'zh' ? '' : ' ');
 
   // ---------------------------------------------------------------------------
   // Canvas drawing (with DPR scaling, deterministic perceptual noise, fallback)
@@ -184,7 +191,7 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
             // Learning finished -> start the fixed test sequence.
             setPhase('test');
             setTestIndex(0);
-            setPhaseNotice('学习阶段结束：测试阶段开始，本阶段不提供任何对错反馈。');
+            setPhaseNotice('proto.notice.learningDone');
             setCurrentPattern(testSequence[0] ?? null);
           } else {
             setLearningIndex(nextLearningIndex);
@@ -253,7 +260,7 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
     if (phase !== 'learning' || learningCount < MIN_LEARNING_BEFORE_EARLY_TEST) return;
     setPhase('test');
     setTestIndex(0);
-    setPhaseNotice('已提前进入测试阶段：本阶段不提供任何对错反馈。');
+    setPhaseNotice('proto.notice.earlyTest');
     setCurrentPattern(testSequence[0] ?? null);
     answeredPatternRef.current = '';
   };
@@ -285,19 +292,19 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                原型图式与模式识别 (Prototype Abstraction)
+                {t('proto.badge')}
               </span>
               <span className="text-xs text-slate-500 font-mono">Posner &amp; Keele (1968) / Knowlton &amp; Squire (1993)</span>
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mt-1">点阵原型畸变抽象测验 (Dot-Pattern Prototype Test)</h2>
+            <h2 className="text-xl font-bold text-slate-900 mt-1">{t('proto.title')}</h2>
             <p className="text-xs text-slate-600 max-w-3xl mt-0.5">
-              认知心理学经典的模式识别与概念形成测验。受试者在学习阶段（{LEARNING_TRIAL_COUNT} 次，有反馈）
-              <span className="font-semibold text-rose-600">绝对看不到纯正原型</span>
-              ，仅通过高斯微扰的散点图形试错分类。测试阶段（{TEST_TRIAL_COUNT} 次，
-              <span className="font-semibold text-slate-900">无任何对错反馈</span>
-              ）加入
-              <span className="font-semibold text-indigo-600">从未见过的真正原型</span>
-              ，测量大脑是否自发抽象出中心原型图式（原型优势效应）。
+              {t('proto.intro.a', { count: LEARNING_TRIAL_COUNT })}
+              <span className="font-semibold text-rose-600">{t('proto.intro.neverPrototype')}</span>
+              {t('proto.intro.b', { count: TEST_TRIAL_COUNT })}
+              <span className="font-semibold text-slate-900">{t('proto.intro.noFeedback')}</span>
+              {t('proto.intro.c')}
+              <span className="font-semibold text-indigo-600">{t('proto.intro.novelPrototype')}</span>
+              {t('proto.intro.d')}
             </p>
           </div>
 
@@ -306,7 +313,7 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
           >
             <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-            重置测验 (Reset)
+            {t('proto.action.reset')}
           </button>
         </div>
 
@@ -320,12 +327,18 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
                   : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
               }`}
             >
-              {phase === 'learning' ? '阶段一：畸变样本试错学习（有反馈）' : '阶段二：原型抽象模式测试（无反馈）'}
+              {phase === 'learning' ? t('proto.phase.learning') : t('proto.phase.test')}
             </span>
             <span className="text-xs text-slate-500 font-mono">
               {phase === 'learning'
-                ? `学习进程: ${Math.min(learningCount, LEARNING_TRIAL_COUNT)}/${LEARNING_TRIAL_COUNT}`
-                : `测试进度: ${Math.min(testCount, testSequence.length)}/${testSequence.length}`}
+                ? t('proto.progress.learning', {
+                    current: Math.min(learningCount, LEARNING_TRIAL_COUNT),
+                    total: LEARNING_TRIAL_COUNT,
+                  })
+                : t('proto.progress.test', {
+                    current: Math.min(testCount, testSequence.length),
+                    total: testSequence.length,
+                  })}
             </span>
           </div>
 
@@ -335,64 +348,76 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
               className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Play className="w-3.5 h-3.5" aria-hidden="true" />
-              提前进入原型测试阶段
+              {t('proto.action.startTestEarly')}
             </button>
           )}
         </div>
 
         <div role="status" aria-live="polite" className="sr-only">
           {phase === 'learning'
-            ? `学习阶段，第 ${learningCount + 1} 次试次`
-            : `测试阶段，第 ${Math.min(testCount + 1, testSequence.length)} 次试次，共 ${testSequence.length} 次`}
+            ? t('proto.a11y.learningTrial', { current: learningCount + 1 })
+            : t('proto.a11y.testTrial', {
+                current: Math.min(testCount + 1, testSequence.length),
+                total: testSequence.length,
+              })}
         </div>
 
         {phaseNotice && (
           <p className="mt-3 text-[11px] text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
-            {phaseNotice}
+            {t(phaseNotice)}
           </p>
         )}
 
         {/* Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3 pt-3 border-t border-slate-100">
           <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-            <span className="text-[11px] text-slate-500 block">学习阶段正确率</span>
+            <span className="text-[11px] text-slate-500 block">{t('proto.stat.learningAccuracy')}</span>
             <span className="text-lg font-bold font-mono text-slate-800">
-              {learningCount === 0 ? '未测得' : `${stats.learningAccuracy}%`}
+              {learningCount === 0 ? t('proto.stat.notMeasured') : `${stats.learningAccuracy}%`}
             </span>
           </div>
           <div className="bg-indigo-50/70 p-2.5 rounded-lg border border-indigo-100">
-            <span className="text-[11px] text-indigo-700 block font-semibold">未见原型识别率</span>
+            <span className="text-[11px] text-indigo-700 block font-semibold">{t('proto.stat.prototypeAccuracy')}</span>
             <span className="text-lg font-bold font-mono text-indigo-700">
-              {stats.prototypeTrialCount === 0 ? '未测得' : `${stats.prototypeAccuracy}%`}
-              <span className="text-[10px] font-normal text-slate-400 ml-1">({stats.prototypeTrialCount} 次)</span>
+              {stats.prototypeTrialCount === 0 ? t('proto.stat.notMeasured') : `${stats.prototypeAccuracy}%`}
+              <span className="text-[10px] font-normal text-slate-400 ml-1">
+                {t('proto.stat.trialCount', { count: stats.prototypeTrialCount })}
+              </span>
             </span>
           </div>
           <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-            <span className="text-[11px] text-slate-500 block">新畸变识别率</span>
+            <span className="text-[11px] text-slate-500 block">{t('proto.stat.novelDistortionAccuracy')}</span>
             <span className="text-lg font-bold font-mono text-slate-700">
-              {stats.novelDistortionTrialCount === 0 ? '未测得' : `${stats.novelDistortionAccuracy}%`}
-              <span className="text-[10px] font-normal text-slate-400 ml-1">({stats.novelDistortionTrialCount} 次)</span>
+              {stats.novelDistortionTrialCount === 0
+                ? t('proto.stat.notMeasured')
+                : `${stats.novelDistortionAccuracy}%`}
+              <span className="text-[10px] font-normal text-slate-400 ml-1">
+                {t('proto.stat.trialCount', { count: stats.novelDistortionTrialCount })}
+              </span>
             </span>
           </div>
           <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-100">
             <span className="text-[11px] text-emerald-800 block font-semibold flex items-center gap-1">
-              原型优势效应
+              {t('proto.stat.enhancement')}
               <Award className="w-3 h-3 text-emerald-600" aria-hidden="true" />
             </span>
             <span className="text-lg font-bold font-mono text-emerald-700">
               {stats.prototypeTrialCount === 0 || stats.novelDistortionTrialCount === 0
-                ? '未测得'
+                ? t('proto.stat.notMeasured')
                 : `${stats.prototypeEnhancementEffect > 0 ? '+' : ''}${stats.prototypeEnhancementEffect}%`}
             </span>
-            <span className="text-[10px] text-slate-400 block">原型率 − 新畸变率</span>
+            <span className="text-[10px] text-slate-400 block">{t('proto.stat.enhancementFormula')}</span>
           </div>
         </div>
 
         <p className="mt-3 text-[11px] text-slate-500">
-          键盘操作：按 <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">A</kbd> 归入星座类别 A，按{' '}
-          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">B</kbd> 归入星座类别 B。
+          {t('proto.keyboard.intro')}
+          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">A</kbd>
+          {t('proto.keyboard.a')}
+          <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-300 rounded font-mono text-[10px]">B</kbd>
+          {t('proto.keyboard.b')}
           <span className="ml-1 text-slate-400">
-            测试阶段的分类序列为预先固定、类别与材料类型均衡的序列，且不提供反馈；因此该阶段的成绩反映的是此前的学习结果，而非在线学习。
+            {joinList(['proto.note.testSequenceA', 'proto.note.testSequenceB'])}
           </span>
         </p>
       </div>
@@ -400,7 +425,7 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
       {/* Main Testing Arena */}
       <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-md relative overflow-hidden flex flex-col items-center">
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-          {phase === 'learning' ? '九散点畸变样本 (Distorted Exemplar)' : '模式识别辨识点阵 (Evaluation Pattern)'}
+          {phase === 'learning' ? t('proto.stimulus.learningTitle') : t('proto.stimulus.testTitle')}
         </div>
 
         {/* Canvas Display */}
@@ -412,8 +437,8 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
               role="alert"
             >
               <AlertTriangle className="w-8 h-8 text-amber-400 mb-2" aria-hidden="true" />
-              <p className="text-xs text-amber-200 font-semibold">无法绘制刺激：当前浏览器未提供可用的 2D 画布上下文</p>
-              <p className="text-[11px] text-slate-400 mt-1">请更换浏览器后重试；此情况下不应继续作答。</p>
+              <p className="text-xs text-amber-200 font-semibold">{t('proto.renderFailed.title')}</p>
+              <p className="text-[11px] text-slate-400 mt-1">{t('proto.renderFailed.body')}</p>
             </div>
           ) : (
             <canvas
@@ -423,7 +448,7 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
               style={{ width: PROTOTYPE_CANVAS_PX, height: PROTOTYPE_CANVAS_PX }}
               className="rounded-xl block"
               role="img"
-              aria-label={phase === 'learning' ? '待分类的九点畸变图形' : '待判断类别的九点图形'}
+              aria-label={phase === 'learning' ? t('proto.stimulus.learningAria') : t('proto.stimulus.testAria')}
             />
           )}
           {cognitiveLoad.distractorInterference && !renderFailed && (
@@ -438,7 +463,7 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
             disabled={isLocked || isTestComplete || renderFailed}
             className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-sm text-white shadow-md transition-all cursor-pointer active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            属于星座类别 A
+            {t('proto.choice.a')}
           </button>
 
           <button
@@ -446,7 +471,7 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
             disabled={isLocked || isTestComplete || renderFailed}
             className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold text-sm text-white shadow-md transition-all cursor-pointer active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            属于星座类别 B
+            {t('proto.choice.b')}
           </button>
         </div>
 
@@ -466,13 +491,13 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
                 ) : (
                   <XCircle className="w-4 h-4" aria-hidden="true" />
                 )}
-                {lastFeedback.isCorrect ? '模式分类正确！' : '模式分类错误！'}
+                {lastFeedback.isCorrect ? t('proto.feedback.correct') : t('proto.feedback.incorrect')}
               </span>
             </div>
           )}
           {phase === 'test' && !isTestComplete && (
             <p className="pt-4 border-t border-slate-800 w-full text-center text-xs text-slate-400">
-              测试阶段不提供对错反馈（已记录 {testCount}/{testSequence.length} 次）
+              {t('proto.feedback.noFeedbackTest', { current: testCount, total: testSequence.length })}
             </p>
           )}
         </div>
@@ -483,45 +508,51 @@ export const PrototypeView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabl
         <div className="bg-white rounded-xl border border-emerald-200 p-5 shadow-xs">
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <Award className="w-4 h-4 text-emerald-600" aria-hidden="true" />
-            本轮原型畸变测验已完成并记入数据
+            {t('proto.complete.title')}
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3 text-xs">
             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-              <span className="text-[11px] text-slate-500 block">学习阶段正确率</span>
+              <span className="text-[11px] text-slate-500 block">{t('proto.stat.learningAccuracy')}</span>
               <span className="text-base font-bold font-mono text-slate-800">
-                {stats.learningAccuracy}%（{stats.learningTrialCount} 次）
+                {t('proto.complete.learningValue', {
+                  accuracy: stats.learningAccuracy,
+                  count: stats.learningTrialCount,
+                })}
               </span>
             </div>
             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-              <span className="text-[11px] text-slate-500 block">未见原型 / 新畸变</span>
+              <span className="text-[11px] text-slate-500 block">{t('proto.complete.prototypeVsNovel')}</span>
               <span className="text-base font-bold font-mono text-indigo-700">
                 {stats.prototypeAccuracy}% / {stats.novelDistortionAccuracy}%
               </span>
             </div>
             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-              <span className="text-[11px] text-slate-500 block">原型优势效应</span>
+              <span className="text-[11px] text-slate-500 block">{t('proto.stat.enhancement')}</span>
               <span className="text-base font-bold font-mono text-emerald-700">
                 {stats.prototypeEnhancementEffect > 0 ? '+' : ''}
                 {stats.prototypeEnhancementEffect}pp
               </span>
             </div>
             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-              <span className="text-[11px] text-slate-500 block">平均反应时</span>
+              <span className="text-[11px] text-slate-500 block">{t('proto.stat.avgRt')}</span>
               <span className="text-base font-bold font-mono text-slate-800">
-                {stats.avgReactionTimeMs === null ? '未测得' : `${stats.avgReactionTimeMs}ms`}
+                {stats.avgReactionTimeMs === null ? t('proto.stat.notMeasured') : `${stats.avgReactionTimeMs}ms`}
               </span>
-              <span className="text-[10px] text-slate-400 block">基于 {stats.rtSampleCount} 次作答</span>
+              <span className="text-[10px] text-slate-400 block">
+                {t('proto.stat.rtSamples', { count: stats.rtSampleCount })}
+              </span>
             </div>
           </div>
           <p className="text-[11px] text-slate-500 mt-3">
-            说明：原型优势效应为同一测试序列内“未见原型正确率 − 新畸变正确率”的差值；本序列每类各{' '}
-            {Math.floor(testSequence.length / 3)} 次，A/B 各半，且测试阶段无反馈。该差值未经常模校正，不能单独作为能力判读依据。
+            {joinList(['proto.complete.noteA', 'proto.complete.noteB'], {
+              perType: Math.floor(testSequence.length / 3),
+            })}
           </p>
           <button
             onClick={resetTest}
             className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition-colors"
           >
-            重新开始一轮
+            {t('proto.action.restart')}
           </button>
         </div>
       )}

@@ -45,6 +45,15 @@ jobs:
           npm run typecheck
           npm run build
 
+      # 后端在部署前必须通过类型检查与端到端冒烟测试（注册/登录/上报幂等/
+      # 权限隔离/导出/删除权，共 30+ 项断言），避免坏版本把线上数据搞乱。
+      - name: Test API (typecheck + smoke)
+        working-directory: api
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run smoke
+
       - name: Assemble the site
         run: |
           set -euo pipefail
@@ -73,7 +82,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy with rsync
+      - name: Deploy static site with rsync
         run: |
           set -euo pipefail
           rsync -az --delete --mkpath \
@@ -81,6 +90,67 @@ jobs:
             --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
             -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes" \
             site/ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/var/www/brian.mplusm.site/"
+
+      # ---------------------------------------------------------------- 后端
+      # 只同步源码。node_modules / .env / 数据库 / 备份都不在源里，
+      # 用 --exclude 保护它们不被 --delete 删除。
+      - name: Deploy API source
+        run: |
+          set -euo pipefail
+          rsync -az --delete --mkpath \
+            --no-perms --omit-dir-times \
+            --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
+            --exclude 'node_modules/' \
+            --exclude '.env' \
+            --exclude 'ecosystem.config.cjs' \
+            --exclude 'backups/' \
+            --exclude '*.db' \
+            --exclude '*.db-wal' \
+            --exclude '*.db-shm' \
+            -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes" \
+            api/ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/srv/brian-api/"
+
+      - name: Install API dependencies, migrate and reload
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes \
+            deploy/ecosystem.brian-api.config.cjs \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/srv/brian-api/ecosystem.config.cjs"
+
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /srv/brian-api
+
+          mkdir -p /var/log/brian-api /var/www/brian-data
+
+          echo "--- 安装依赖（含编译产物，仅生产依赖）---"
+          npm ci --omit=dev --no-audit --no-fund
+
+          echo "--- 应用数据库 schema ---"
+          node scripts/migrate.mjs
+
+          echo "--- 重载服务 ---"
+          if pm2 describe brian-api >/dev/null 2>&1; then
+            pm2 reload ecosystem.config.cjs --update-env
+          else
+            pm2 start ecosystem.config.cjs
+          fi
+          pm2 save
+
+          echo "--- 健康检查 ---"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS --max-time 5 http://127.0.0.1:3011/api/health >/dev/null 2>&1; then
+              echo "✓ API 健康检查通过"
+              curl -fsS --max-time 5 http://127.0.0.1:3011/api/health
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "✗ API 健康检查失败，最近日志："
+          pm2 logs brian-api --lines 40 --nostream || true
+          exit 1
+          REMOTE
 
       # 发布后自检。
       # 网络层未就绪（DNS 未解析 / 443 证书还没签发）时只警告，
@@ -124,6 +194,24 @@ jobs:
             echo "  ${path} -> ${code}"
             [ "$code" = "200" ] || failed=1
           done
+
+          # 数据服务：必须真的返回 {"ok":true}，而不只是 200。
+          err=$(mktemp)
+          rc=0
+          health=$(curl -sS --max-time 20 "${base}/api/health" 2>"$err") || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            case "$rc" in
+              6|7|35|60) echo "  /api/health -> 未就绪 (curl exit ${rc})"; not_ready=1 ;;
+              *)         echo "  /api/health -> 请求失败 (curl exit ${rc})"; failed=1 ;;
+            esac
+          else
+            echo "  /api/health -> ${health}"
+            case "$health" in
+              *'"ok":true'*) ;;
+              *) echo "::error::API 健康检查未返回 ok:true"; failed=1 ;;
+            esac
+          fi
+          rm -f "$err"
 
           if [ "$failed" -ne 0 ]; then
             echo "::error::线上自检失败：站点已能响应，但至少一个路径未返回 200。请检查 nginx 配置与部署产物（见 deploy/SETUP.md）。"

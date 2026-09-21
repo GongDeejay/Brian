@@ -6,6 +6,7 @@ import {
   OSPANResult,
   SessionValidityRecord,
 } from '../types/wm';
+import { translate, type Lang } from '../i18n';
 
 export const STORAGE_KEY = 'wm_cognitive_platform_data_v1';
 
@@ -19,7 +20,11 @@ export interface SaveOutcome {
   /** Profile that is authoritative in memory (may be trimmed on quota errors). */
   profile: CognitiveProfile;
   persisted: boolean;
-  /** Human-readable Chinese reason when `persisted` is false. */
+  /**
+   * Localized, human-readable reason when `persisted` is false. Rendered in the
+   * language that was active at save time (see the `lang` argument on the
+   * `save*Result` helpers) — history entries are frozen as they were written.
+   */
   error: string | null;
 }
 
@@ -217,12 +222,12 @@ function normalizeProfile(value: unknown): CognitiveProfile {
 // Read / write
 // ---------------------------------------------------------------------------
 
-function describeStorageError(error: unknown): string {
+function describeStorageError(error: unknown, lang: Lang): string {
   const name = isRecord(error) ? String(error.name ?? '') : '';
   if (name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-    return '浏览器本地存储空间不足，本次结果已保留在当前页面，但未能写入本地记录。';
+    return translate(lang, 'storage.error.quota');
   }
-  return '浏览器本地存储不可用（可能处于隐私模式或已禁用），本次结果仅在当前页面有效。';
+  return translate(lang, 'storage.error.unavailable');
 }
 
 /**
@@ -230,7 +235,7 @@ function describeStorageError(error: unknown): string {
  * on a quota error the history log is progressively trimmed (and finally
  * dropped) before giving up, and a failure never propagates to the caller.
  */
-function writeProfile(profile: CognitiveProfile): SaveOutcome {
+function writeProfile(profile: CognitiveProfile, lang: Lang): SaveOutcome {
   const trimmed = (limit: number): CognitiveProfile => ({
     ...profile,
     history: profile.history.slice(0, limit),
@@ -249,7 +254,7 @@ function writeProfile(profile: CognitiveProfile): SaveOutcome {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate));
       return { profile: candidate, persisted: true, error: null };
     } catch (error) {
-      lastError = describeStorageError(error);
+      lastError = describeStorageError(error, lang);
     }
   }
 
@@ -258,7 +263,7 @@ function writeProfile(profile: CognitiveProfile): SaveOutcome {
     // disappears from the UI, and let the caller surface the notice.
     profile: attempts[0],
     persisted: false,
-    error: lastError ?? '写入本地记录失败。',
+    error: lastError ?? translate(lang, 'storage.error.writeFailed'),
   };
 }
 
@@ -274,57 +279,96 @@ export function loadCognitiveProfile(): CognitiveProfile {
 }
 
 /** Re-persists an existing profile verbatim (used by the "撤销清除" action). */
-export function persistCognitiveProfile(profile: CognitiveProfile): SaveOutcome {
-  return writeProfile(normalizeProfile(profile));
+export function persistCognitiveProfile(profile: CognitiveProfile, lang: Lang = 'zh'): SaveOutcome {
+  return writeProfile(normalizeProfile(profile), lang);
 }
 
-function validitySuffix(result: { validity?: SessionValidityRecord }): string {
+function validitySuffix(
+  result: { validity?: SessionValidityRecord },
+  lang: Lang
+): string {
   const validity = result.validity;
   if (!validity || validity.interruptions === 0) return '';
-  return ` · 中断 ${validity.interruptions} 次`;
+  return translate(lang, 'storage.validitySuffix', { count: validity.interruptions });
 }
 
-export function saveNBackResult(result: NBackResult): SaveOutcome {
+export function saveNBackResult(result: NBackResult, lang: Lang = 'zh'): SaveOutcome {
   const profile = loadCognitiveProfile();
   profile.lastNBackResult = result;
   profile.history.unshift({
     id: makeId('nback'),
     timestamp: Date.now(),
     type: 'nback',
-    scoreDisplay: `${result.n}-back | 正确率: ${(result.accuracy * 100).toFixed(0)}% (d'=${result.dPrime})`,
-    detail: `命中: ${result.hits}, 虚报: ${result.falseAlarms}, 平均反应时: ${Math.round(result.meanReactionTimeMs)}ms${validitySuffix(result)}`,
+    scoreDisplay: translate(lang, 'storage.record.nbackScore', {
+      n: result.n,
+      percent: (result.accuracy * 100).toFixed(0),
+      dPrime: result.dPrime,
+    }),
+    detail:
+      translate(lang, 'storage.record.nbackDetail', {
+        hits: result.hits,
+        falseAlarms: result.falseAlarms,
+        rt: Math.round(result.meanReactionTimeMs),
+      }) + validitySuffix(result, lang),
   });
-  return writeProfile(profile);
+  return writeProfile(profile, lang);
 }
 
-export function saveOSPANResult(result: OSPANResult): SaveOutcome {
+export function saveOSPANResult(result: OSPANResult, lang: Lang = 'zh'): SaveOutcome {
   const profile = loadCognitiveProfile();
   profile.lastOSPANResult = result;
   profile.history.unshift({
     id: makeId('ospan'),
     timestamp: Date.now(),
     type: 'ospan',
-    scoreDisplay: `绝对得分: ${result.absoluteScore} / ${result.maxPossibleScore} | 运算正确率: ${(result.mathAccuracy * 100).toFixed(0)}%`,
-    detail: `总回忆正确项: ${result.totalScore}, 加工平均RT: ${Math.round(result.meanMathRT)}ms${validitySuffix(result)}`,
+    scoreDisplay: translate(lang, 'storage.record.ospanScore', {
+      score: result.absoluteScore,
+      max: result.maxPossibleScore,
+      percent: (result.mathAccuracy * 100).toFixed(0),
+    }),
+    detail:
+      translate(lang, 'storage.record.ospanDetail', {
+        total: result.totalScore,
+        rt: Math.round(result.meanMathRT),
+      }) + validitySuffix(result, lang),
   });
-  return writeProfile(profile);
+  return writeProfile(profile, lang);
 }
 
-export function saveChangeDetectionResult(result: ChangeDetectionResult): SaveOutcome {
+export function saveChangeDetectionResult(
+  result: ChangeDetectionResult,
+  lang: Lang = 'zh'
+): SaveOutcome {
   const profile = loadCognitiveProfile();
   profile.lastChangeDetectionResult = result;
   // Derived from the session's own breakdown instead of a hardcoded 4/6/8.
   const setSizes = (result.breakdownBySetSize ?? []).map((b) => b.setSize).filter((s) => s > 0);
+  const arraySizes =
+    setSizes.length > 0
+      ? translate(lang, 'storage.record.arraySizes', { sizes: setSizes.join('/') })
+      : translate(lang, 'storage.record.arraySizesNone');
+  const arrayScale = result.breakdownBySetSize?.length
+    ? translate(lang, 'storage.record.arrayScaleSuffix', {
+        count: result.breakdownBySetSize.length,
+      })
+    : '';
   profile.history.unshift({
     id: makeId('cd'),
     timestamp: Date.now(),
     type: 'change_detection',
-    scoreDisplay: `Cowan's K = ${result.meanCowanK.toFixed(2)} | 准确率: ${(result.overallAccuracy * 100).toFixed(0)}%`,
-    detail: `测试项阵列 ${setSizes.length > 0 ? setSizes.join('/') : '—'}${result.breakdownBySetSize?.length ? ` (${result.breakdownBySetSize.length} 种规模)` : ''}, 平均反应时: ${Math.round(result.meanReactionTimeMs)}ms${validitySuffix(result)}`,
+    scoreDisplay: translate(lang, 'storage.record.cdScore', {
+      k: result.meanCowanK.toFixed(2),
+      percent: (result.overallAccuracy * 100).toFixed(0),
+    }),
+    detail:
+      translate(lang, 'storage.record.cdDetail', {
+        arrayText: `${arraySizes}${arrayScale}`,
+        rt: Math.round(result.meanReactionTimeMs),
+      }) + validitySuffix(result, lang),
   });
-  return writeProfile(profile);
+  return writeProfile(profile, lang);
 }
 
-export function clearCognitiveHistory(): SaveOutcome {
-  return writeProfile(createEmptyProfile());
+export function clearCognitiveHistory(lang: Lang = 'zh'): SaveOutcome {
+  return writeProfile(createEmptyProfile(), lang);
 }

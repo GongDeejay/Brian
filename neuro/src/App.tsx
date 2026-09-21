@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type FC } from 'react';
 import { CognitiveLoadConfig, ParadigmStats, SessionReport, TaskId } from './types';
 import { Header } from './components/Header';
 import { CognitiveLoadPanel } from './components/CognitiveLoadPanel';
@@ -8,6 +8,9 @@ import { GaborView } from './components/GaborView';
 import { PrototypeView } from './components/PrototypeView';
 import { LiteratureModal } from './components/LiteratureModal';
 import { audioFeedback } from './services/audioService';
+import { useI18n } from './i18n';
+import { useAuth } from './context/AuthContext';
+import { syncPendingRecords } from './services/sessionSync';
 import {
   createSessionRecord,
   isLoadActive,
@@ -27,18 +30,26 @@ const AnalyticsDashboard = lazy(() =>
 );
 const WPTView = lazy(() => import('./components/WPTView').then((m) => ({ default: m.WPTView })));
 
-/** Shared loading placeholder for lazily-loaded panels. */
-const PanelFallback: React.FC<{ label: string }> = ({ label }) => (
-  <div
-    className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-sm text-slate-500"
-    role="status"
-    aria-live="polite"
-  >
-    {label}
-  </div>
-);
+/**
+ * Shared loading placeholder for lazily-loaded panels.
+ * `panelKey` names the paradigm so the whole sentence stays translatable.
+ */
+const PanelFallback: FC<{ panelKey: 'panel.wpt' | 'panel.analytics' }> = ({ panelKey }) => {
+  const { t } = useI18n();
+  return (
+    <div
+      className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-sm text-slate-500"
+      role="status"
+      aria-live="polite"
+    >
+      {t('common.loadingPanel', { panel: t(panelKey) })}
+    </div>
+  );
+};
 
 export default function App() {
+  const { t, lang } = useI18n();
+  const { user, hasConsented } = useAuth();
   const [activeTask, setActiveTask] = useState<TaskId | 'analytics'>('wcst');
   const [isLoadPanelOpen, setIsLoadPanelOpen] = useState<boolean>(false);
   const [isLiteratureOpen, setIsLiteratureOpen] = useState<boolean>(false);
@@ -64,6 +75,23 @@ export default function App() {
     saveSessions(sessions);
   }, [sessions]);
 
+  /**
+   * Auto-sync after a new session lands.
+   *
+   * Only runs when signed in AND consent for the current terms has been given —
+   * without consent nothing is uploaded and records stay on this device. The
+   * upload is idempotent, so re-running on every change is harmless.
+   */
+  useEffect(() => {
+    if (!user || !hasConsented) return;
+    void syncPendingRecords(lang, null);
+  }, [sessions, user, hasConsented, lang]);
+
+  // Keep the browser tab title in step with the selected language.
+  useEffect(() => {
+    document.title = t('app.titleFull');
+  }, [t]);
+
   const handleToggleAudio = () => {
     const next = !isAudioEnabled;
     setIsAudioEnabled(next);
@@ -81,10 +109,13 @@ export default function App() {
         durationSeconds: report.durationSeconds,
         loadConfig: cognitiveLoad,
         extraMetrics: report.extraMetrics,
+        // Stored headline strings follow the language in use when the run finished;
+        // the reference-language file name and year are language-neutral.
+        lang,
       });
       setSessions((prev) => [...prev, record].slice(-MAX_STORED_SESSIONS));
     },
-    [cognitiveLoad]
+    [cognitiveLoad, lang]
   );
 
   return (
@@ -128,7 +159,7 @@ export default function App() {
 
         {activeTask === 'wpt' && (
           <div id="task-panel-wpt" role="tabpanel" aria-labelledby="task-tab-wpt" tabIndex={0}>
-            <Suspense fallback={<PanelFallback label="正在加载天气预测任务…" />}>
+            <Suspense fallback={<PanelFallback panelKey="panel.wpt" />}>
               <WPTView
                 cognitiveLoad={cognitiveLoad}
                 celebrationEnabled={isCelebrationEnabled}
@@ -166,7 +197,7 @@ export default function App() {
 
         {activeTask === 'analytics' && (
           <div id="task-panel-analytics" role="tabpanel" aria-labelledby="task-tab-analytics" tabIndex={0}>
-            <Suspense fallback={<PanelFallback label="正在加载结果分析看板…" />}>
+            <Suspense fallback={<PanelFallback panelKey="panel.analytics" />}>
               <AnalyticsDashboard
                 cognitiveLoad={cognitiveLoad}
                 sessions={sessions}
@@ -184,8 +215,9 @@ export default function App() {
       <footer className="mt-auto py-6 border-t border-slate-200 bg-white text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <div>
-            <span className="font-semibold text-slate-700">NeuroClassify</span> · 认知神经科学执行功能与模式识别实验室套件
+            <span className="font-semibold text-slate-700">{t('app.title')}</span> · {t('footer.suite')}
           </div>
+          {/* Citation keys are language-neutral bibliographic labels. */}
           <div className="flex items-center gap-4 text-[11px] text-slate-400">
             <span>WCST (Heaton 1993)</span>
             <span>WPT (Knowlton 1996)</span>
@@ -195,7 +227,7 @@ export default function App() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-2 text-[11px] text-amber-700">
-          本平台为科研与教学用演示工具：所输出的全部数值均为本系统内部指数，未经常模校正，不构成临床诊断或医疗建议。
+          {t('footer.disclaimer')}
         </div>
       </footer>
     </div>

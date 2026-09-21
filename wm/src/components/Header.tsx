@@ -1,6 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { Brain, Volume2, VolumeX, BookOpen, BarChart3, Layers, Calculator, Eye, Home } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Brain, Volume2, VolumeX, BookOpen, BarChart3, Layers, Calculator, Eye, Home, User } from 'lucide-react';
 import { TaskType } from '../types/wm';
+import { LANGUAGES, useI18n } from '../i18n';
+import { useAuth } from '../context/AuthContext';
+import { AccountDialog } from './AccountDialog';
 
 interface HeaderProps {
   activeTab: TaskType;
@@ -15,11 +18,24 @@ const ICON_BUTTON =
   'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700/60 bg-slate-800 text-slate-300 transition hover:text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400';
 
 export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTheory }: HeaderProps) => {
+  const { lang, toggleLang, t } = useI18n();
+  const { user } = useAuth();
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+
+  /**
+   * The language control always advertises the language it switches *to*: it
+   * reads "EN" while the UI is Chinese and "中" while the UI is English, so the
+   * face of the button and its `action.languageTo` tooltip agree. `LANGUAGES`
+   * labels are endonyms ("中文" / "English") and therefore read correctly in
+   * both catalogues.
+   */
+  const nextLanguage = LANGUAGES.find((item) => item.id !== lang) ?? LANGUAGES[0];
+
   const tabs = [
     {
       id: 'nback' as TaskType,
-      label: 'N-back 动态刷新',
-      short: 'N-back',
+      label: t('nav.nback'),
+      short: t('nav.nback.short'),
       sub: 'Kirchner (1958)',
       icon: Layers,
       color: 'text-indigo-400',
@@ -27,8 +43,8 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
     },
     {
       id: 'ospan' as TaskType,
-      label: 'OSPAN 复杂运算跨度',
-      short: 'OSPAN',
+      label: t('nav.ospan'),
+      short: t('nav.ospan.short'),
       sub: 'Turner & Engle (1989)',
       icon: Calculator,
       color: 'text-cyan-400',
@@ -36,8 +52,8 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
     },
     {
       id: 'change_detection' as TaskType,
-      label: '视觉变化检测 (K值)',
-      short: '变化检测',
+      label: t('nav.changeDetection'),
+      short: t('nav.changeDetection.short'),
       sub: 'Cowan (2001)',
       icon: Eye,
       color: 'text-amber-400',
@@ -45,9 +61,9 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
     },
     {
       id: 'dashboard' as TaskType,
-      label: '认知画像与报告',
-      short: '认知画像',
-      sub: '综合评测与雷达图',
+      label: t('nav.dashboard'),
+      short: t('nav.dashboard.short'),
+      sub: t('nav.dashboard.sub'),
       icon: BarChart3,
       color: 'text-emerald-400',
       activeBg: 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300',
@@ -75,15 +91,15 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
                 <div className="flex items-center gap-2">
                   <h1 className="truncate text-base font-bold tracking-tight text-white sm:text-lg">
                     {/* Short title on phones: the full name wraps and collides with the actions. */}
-                    <span className="sm:hidden">工作记忆训练与评估</span>
-                    <span className="hidden sm:inline">工作记忆认知训练与评估系统</span>
+                    <span className="sm:hidden">{t('app.title')}</span>
+                    <span className="hidden sm:inline">{t('app.titleFull')}</span>
                   </h1>
                   <span className="hidden shrink-0 rounded-full border border-indigo-500/30 bg-indigo-950/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-300 lg:inline-flex">
-                    WM Paradigm Lab
+                    {t('app.badge')}
                   </span>
                 </div>
                 <p className="hidden truncate text-xs text-slate-400 sm:block">
-                  前额叶皮层激活 · 动态更新与抑制控制 · 复杂双任务加工 · 视空间容量极限
+                  {t('app.tagline')}
                 </p>
               </div>
             </div>
@@ -94,17 +110,34 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
                 id="btn-back-home"
                 href="../"
                 className={ICON_BUTTON}
-                title="返回首页"
-                aria-label="返回首页"
+                title={t('action.home')}
+                aria-label={t('action.home')}
               >
                 <Home className="h-4 w-4 text-slate-300" aria-hidden="true" />
               </a>
+              {/* Language switch: same 36px square as the other icon actions so
+                  the phone row keeps four controls without wrapping. */}
+              <button
+                id="btn-language-toggle"
+                type="button"
+                onClick={toggleLang}
+                className={ICON_BUTTON}
+                title={t('action.languageTo', { lang: nextLanguage.label })}
+                aria-label={t('action.languageTo', { lang: nextLanguage.label })}
+              >
+                <span
+                  lang={nextLanguage.id === 'zh' ? 'zh-CN' : 'en'}
+                  className="text-[11px] font-bold leading-none tracking-tight"
+                >
+                  {nextLanguage.short}
+                </span>
+              </button>
               <button
                 id="btn-open-theory-mobile"
                 onClick={onOpenTheory}
                 className={`${ICON_BUTTON} md:hidden`}
-                title="学术范式理论"
-                aria-label="打开学术范式理论"
+                title={t('action.theory')}
+                aria-label={t('action.theory')}
               >
                 <BookOpen className="h-4 w-4 text-indigo-400" aria-hidden="true" />
               </button>
@@ -112,14 +145,33 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
                 id="btn-sound-toggle"
                 onClick={onToggleMute}
                 className={ICON_BUTTON}
-                title={isMuted ? '取消静音' : '静音'}
-                aria-label={isMuted ? '取消静音' : '静音'}
+                title={isMuted ? t('action.unmute') : t('action.mute')}
+                aria-label={isMuted ? t('action.unmute') : t('action.mute')}
                 aria-pressed={isMuted}
               >
                 {isMuted ? (
                   <VolumeX className="h-4 w-4 text-rose-400" aria-hidden="true" />
                 ) : (
                   <Volume2 className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                )}
+              </button>
+
+              {/* Account: opens sign-in / register / data controls. The icon
+                  turns indigo once signed in so the state is visible at a glance. */}
+              <button
+                id="btn-account"
+                type="button"
+                onClick={() => setIsAccountOpen(true)}
+                className={`relative ${ICON_BUTTON} ${user ? 'border-indigo-500/50 bg-indigo-500/15 text-indigo-300' : ''}`}
+                title={user ? t('account.menuTitle') : t('account.signIn')}
+                aria-label={user ? t('account.menuTitle') : t('account.signIn')}
+              >
+                <User className="h-4 w-4" aria-hidden="true" />
+                {user && (
+                  <span
+                    className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-emerald-400"
+                    aria-hidden="true"
+                  />
                 )}
               </button>
 
@@ -130,10 +182,10 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
                 className="hidden items-center gap-2 rounded-lg border border-slate-700/60 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 hover:text-white md:flex"
               >
                 <BookOpen className="h-4 w-4 text-indigo-400" aria-hidden="true" />
-                <span>学术原理与范式文献</span>
+                <span>{t('action.theoryFull')}</span>
               </button>
               <span className="hidden text-xs text-slate-500 md:inline">
-                {isMuted ? '音效已静音' : '实验音效开启'}
+                {isMuted ? t('action.soundOff') : t('action.soundOn')}
               </span>
             </div>
           </div>
@@ -143,7 +195,7 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
         <div className="relative mt-3 border-t border-slate-800/80 pt-2">
           <div
             role="tablist"
-            aria-label="范式与报告导航"
+            aria-label={t('nav.aria')}
             className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1"
           >
             {tabs.map((tab) => {
@@ -156,7 +208,7 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
                   id={`tab-nav-${tab.id}`}
                   role="tab"
                   aria-selected={isActive}
-                  aria-label={`${tab.label}（${tab.sub}）`}
+                  aria-label={t('nav.tabAria', { label: tab.label, sub: tab.sub })}
                   onClick={() => onSelectTab(tab.id)}
                   className={`flex shrink-0 snap-start cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-all whitespace-nowrap sm:gap-2.5 sm:px-3.5 ${
                     isActive
@@ -182,6 +234,10 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
           />
         </div>
       </div>
+
+      {/* Rendered from the header so the account UI owns its own open/close state
+          without threading props through App. */}
+      <AccountDialog isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
     </header>
   );
 };

@@ -1,4 +1,5 @@
 import { Timer } from 'lucide-react';
+import { translate, useI18n, type Lang } from '../i18n';
 
 type Accent = 'indigo' | 'cyan' | 'amber';
 
@@ -8,14 +9,23 @@ const ACCENTS: Record<Accent, { bar: string; text: string }> = {
   amber: { bar: 'bg-amber-500', text: 'text-amber-300' },
 };
 
-/** Formats a duration as `约 1 分 05 秒` / `约 42 秒`. */
-export function formatEta(ms: number | null): string {
-  if (ms === null || !Number.isFinite(ms) || ms < 0) return '—';
+/**
+ * Formats a duration as `约 1 分 05 秒` / `约 42 秒` (zh) or
+ * `~1 min 05 s` / `~42 s` (en). The caller's language must be passed in
+ * explicitly because this helper is also usable outside React.
+ */
+export function formatEta(ms: number | null, lang: Lang): string {
+  if (ms === null || !Number.isFinite(ms) || ms < 0) return translate(lang, 'progress.etaUnknown');
   const totalSeconds = Math.round(ms / 1000);
-  if (totalSeconds < 60) return `约 ${totalSeconds} 秒`;
+  if (totalSeconds < 60) {
+    return translate(lang, 'progress.etaUnderMinute', { seconds: totalSeconds });
+  }
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `约 ${minutes} 分 ${String(seconds).padStart(2, '0')} 秒`;
+  return translate(lang, 'progress.etaMinutes', {
+    minutes,
+    seconds: String(seconds).padStart(2, '0'),
+  });
 }
 
 interface ProgressBarProps {
@@ -23,6 +33,7 @@ interface ProgressBarProps {
   total: number;
   etaMs: number | null;
   accent?: Accent;
+  /** Defaults to the localized "总体进度" / "Overall progress". */
   label?: string;
   className?: string;
 }
@@ -36,24 +47,27 @@ export const ProgressBar = ({
   total,
   etaMs,
   accent = 'indigo',
-  label = '总体进度',
+  label,
   className = '',
 }: ProgressBarProps) => {
+  const { t, lang } = useI18n();
   const safeTotal = Number.isFinite(total) && total > 0 ? total : 1;
   const safeCurrent = Math.min(Math.max(Number.isFinite(current) ? current : 0, 0), safeTotal);
   const percent = Math.round((safeCurrent / safeTotal) * 100);
   const tone = ACCENTS[accent];
+  const displayLabel = label ?? t('progress.defaultLabel');
+  const etaText = formatEta(etaMs, lang);
 
   return (
     <div className={`w-full ${className}`}>
       <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
         <span>
-          {label} <span className={`font-mono font-semibold ${tone.text}`}>{safeCurrent} / {safeTotal}</span>
+          {displayLabel} <span className={`font-mono font-semibold ${tone.text}`}>{safeCurrent} / {safeTotal}</span>
           <span className="ml-1 text-slate-500">({percent}%)</span>
         </span>
         <span className="flex items-center gap-1 font-mono">
           <Timer className="w-3 h-3" aria-hidden="true" />
-          <span>预计剩余 {formatEta(etaMs)}</span>
+          <span>{t('progress.remaining', { time: etaText })}</span>
         </span>
       </div>
       <div
@@ -62,7 +76,11 @@ export const ProgressBar = ({
         aria-valuemin={0}
         aria-valuemax={safeTotal}
         aria-valuenow={safeCurrent}
-        aria-label={`${label}：已完成 ${safeCurrent} / ${safeTotal}`}
+        aria-label={t('progress.aria', {
+          label: displayLabel,
+          current: safeCurrent,
+          total: safeTotal,
+        })}
       >
         <div
           className={`h-full ${tone.bar} transition-[width] duration-300 motion-reduce:transition-none`}

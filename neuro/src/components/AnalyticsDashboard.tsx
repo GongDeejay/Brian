@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { CognitiveLoadConfig, ProfileDimension, TaskId, TestSessionRecord } from '../types';
 import { buildReport, clearSessions, computeProfile, describeLoad, TASK_LABELS } from '../services/sessionStore';
+import { useI18n } from '../i18n';
 import {
   ResponsiveContainer,
   RadarChart,
@@ -40,8 +41,13 @@ interface RadarDatum {
 
 const TASK_ORDER: TaskId[] = ['wcst', 'wpt', 'ided', 'gabor', 'prototype'];
 
+type Translate = ReturnType<typeof useI18n>['t'];
+
 /** Real measured headline numbers of the most recent run of each paradigm. */
-function buildIndicatorRows(sessions: TestSessionRecord[]) {
+function buildIndicatorRows(
+  t: Translate,
+  sessions: TestSessionRecord[]
+): { task: TaskId; record: TestSessionRecord | null; rows: { label: string; value: string }[] }[] {
   const latest = new Map<TaskId, TestSessionRecord>();
   for (const record of sessions) latest.set(record.task, record);
 
@@ -55,53 +61,115 @@ function buildIndicatorRows(sessions: TestSessionRecord[]) {
     const m = record.metrics;
     if (m.task === 'wcst') {
       rows = [
-        { label: '试验数 / 完成分类', value: `${m.wcst.totalTrials} 次 / ${m.wcst.categoriesCompleted} of 6` },
-        { label: '持续性错误率 (PE)', value: `${m.wcst.perseverativeErrorRate}%（PE ${m.wcst.perseverativeErrors} 次）` },
-        { label: '非持续性错误 / 未反应', value: `${m.wcst.nonPerseverativeErrors} / ${m.wcst.omissions} 次` },
         {
-          label: '平均反应时',
-          value: m.wcst.avgReactionTimeMs === null ? '未测得' : `${m.wcst.avgReactionTimeMs} ms（n=${m.wcst.rtSampleCount}）`,
+          label: t('analytics.row.wcst.trials'),
+          value: t('analytics.row.wcst.trialsValue', { trials: m.wcst.totalTrials, categories: m.wcst.categoriesCompleted }),
+        },
+        {
+          label: t('analytics.row.wcst.pe'),
+          value: t('analytics.row.wcst.peValue', {
+            rate: m.wcst.perseverativeErrorRate,
+            errors: m.wcst.perseverativeErrors,
+          }),
+        },
+        {
+          label: t('analytics.row.wcst.errors'),
+          value: t('analytics.row.wcst.errorsValue', {
+            npe: m.wcst.nonPerseverativeErrors,
+            omissions: m.wcst.omissions,
+          }),
+        },
+        {
+          label: t('analytics.row.rt'),
+          value:
+            m.wcst.avgReactionTimeMs === null
+              ? t('analytics.row.notMeasured')
+              : t('analytics.row.rtValueSampled', { ms: m.wcst.avgReactionTimeMs, n: m.wcst.rtSampleCount }),
         },
       ];
     } else if (m.task === 'wpt') {
       rows = [
-        { label: '试验数 / 作答数', value: `${m.wpt.totalTrials} / ${m.wpt.respondedTrials} 次` },
-        { label: '最优选择率', value: `${m.wpt.optimalRate}%` },
-        { label: '实际命中率', value: `${m.wpt.actualAccuracy}%` },
-        { label: '未反应次数', value: `${m.wpt.timeouts} 次` },
+        {
+          label: t('analytics.row.wpt.trials'),
+          value: t('analytics.row.wpt.trialsValue', { total: m.wpt.totalTrials, responded: m.wpt.respondedTrials }),
+        },
+        { label: t('analytics.row.wpt.optimal'), value: t('analytics.row.wpt.optimalValue', { rate: m.wpt.optimalRate }) },
+        { label: t('analytics.row.wpt.accuracy'), value: t('analytics.row.wpt.accuracyValue', { rate: m.wpt.actualAccuracy }) },
+        { label: t('analytics.row.wpt.timeouts'), value: t('analytics.row.wpt.timeoutsValue', { count: m.wpt.timeouts }) },
       ];
     } else if (m.task === 'ided') {
       rows = [
-        { label: '完成阶段', value: `${m.ided.stagesCompleted} of 7` },
-        { label: 'EDS / IDS 错误', value: `${m.ided.edsErrors} / ${m.ided.idsErrors} 次` },
-        { label: 'EDS 定势转移代价', value: `${m.ided.edsShiftCost}` },
+        { label: t('analytics.row.ided.stages'), value: t('analytics.row.ided.stagesValue', { stages: m.ided.stagesCompleted }) },
         {
-          label: 'EDS 结果',
+          label: t('analytics.row.ided.errors'),
+          value: t('analytics.row.ided.errorsValue', { eds: m.ided.edsErrors, ids: m.ided.idsErrors }),
+        },
+        {
+          label: t('analytics.row.ided.shiftCost'),
+          value: t('analytics.row.ided.shiftCostValue', { cost: m.ided.edsShiftCost }),
+        },
+        {
+          label: t('analytics.row.ided.result'),
           value: m.ided.failedStage
-            ? `${m.ided.failedStage} 阶段达 ${m.ided.maxTrialsPerStage} 次上限未通过`
+            ? t('analytics.row.ided.failed', { stage: m.ided.failedStage, max: m.ided.maxTrialsPerStage })
             : m.ided.passedEDS
-            ? '已通过'
-            : '未进行到 EDS',
+            ? t('analytics.row.ided.passed')
+            : t('analytics.row.ided.notReached'),
         },
       ];
     } else if (m.task === 'gabor') {
       rows = [
-        { label: '试验数', value: `${m.gabor.totalTrials} 次` },
-        { label: 'II 条件正确率', value: m.gabor.ii.accuracy === null ? '未测得' : `${m.gabor.ii.accuracy}%（${m.gabor.ii.trials} 次）` },
-        { label: 'RB 条件正确率', value: m.gabor.rb.accuracy === null ? '未测得' : `${m.gabor.rb.accuracy}%（${m.gabor.rb.trials} 次）` },
-        { label: '平均反应时', value: m.gabor.avgReactionTimeMs === null ? '未测得' : `${m.gabor.avgReactionTimeMs} ms` },
+        { label: t('analytics.row.gabor.trials'), value: t('analytics.row.gabor.trialsValue', { count: m.gabor.totalTrials }) },
+        {
+          label: t('analytics.row.gabor.ii'),
+          value:
+            m.gabor.ii.accuracy === null
+              ? t('analytics.row.notMeasured')
+              : t('analytics.row.gabor.iiValue', { rate: m.gabor.ii.accuracy, trials: m.gabor.ii.trials }),
+        },
+        {
+          label: t('analytics.row.gabor.rb'),
+          value:
+            m.gabor.rb.accuracy === null
+              ? t('analytics.row.notMeasured')
+              : t('analytics.row.gabor.rbValue', { rate: m.gabor.rb.accuracy, trials: m.gabor.rb.trials }),
+        },
+        {
+          label: t('analytics.row.rt'),
+          value:
+            m.gabor.avgReactionTimeMs === null
+              ? t('analytics.row.notMeasured')
+              : t('analytics.row.rtValue', { ms: m.gabor.avgReactionTimeMs }),
+        },
       ];
     } else {
       rows = [
-        { label: '学习 / 测试试次', value: `${m.prototype.learningTrialCount} / ${m.prototype.testTrialCount} 次` },
-        { label: '未见原型 / 新畸变正确率', value: `${m.prototype.prototypeAccuracy}% / ${m.prototype.novelDistortionAccuracy}%` },
         {
-          label: '原型优势效应',
-          value: `${m.prototype.prototypeEnhancementEffect > 0 ? '+' : ''}${m.prototype.prototypeEnhancementEffect}pp`,
+          label: t('analytics.row.prototype.trials'),
+          value: t('analytics.row.prototype.trialsValue', {
+            learning: m.prototype.learningTrialCount,
+            test: m.prototype.testTrialCount,
+          }),
         },
         {
-          label: '平均反应时',
-          value: m.prototype.avgReactionTimeMs === null ? '未测得' : `${m.prototype.avgReactionTimeMs} ms`,
+          label: t('analytics.row.prototype.accuracies'),
+          value: t('analytics.row.prototype.accuraciesValue', {
+            proto: m.prototype.prototypeAccuracy,
+            novel: m.prototype.novelDistortionAccuracy,
+          }),
+        },
+        {
+          label: t('analytics.row.prototype.effect'),
+          value: t('analytics.row.prototype.effectValue', {
+            effect: `${m.prototype.prototypeEnhancementEffect > 0 ? '+' : ''}${m.prototype.prototypeEnhancementEffect}`,
+          }),
+        },
+        {
+          label: t('analytics.row.rt'),
+          value:
+            m.prototype.avgReactionTimeMs === null
+              ? t('analytics.row.notMeasured')
+              : t('analytics.row.rtValue', { ms: m.prototype.avgReactionTimeMs }),
         },
       ];
     }
@@ -111,14 +179,17 @@ function buildIndicatorRows(sessions: TestSessionRecord[]) {
 }
 
 export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, onClearSessions }) => {
-  const profile = useMemo(() => computeProfile(sessions), [sessions]);
+  const { t, lang } = useI18n();
+  // `computeProfile` is a plain function, so it takes the language explicitly;
+  // every score in it is still derived from measured values only.
+  const profile = useMemo(() => computeProfile(sessions, lang), [sessions, lang]);
 
   /**
    * Radar data is built ONLY from measured sessions. A dimension without data is
-   * drawn as 0 and explicitly labelled 暂无数据 — never filled with an estimate.
+   * drawn as 0 and explicitly labelled as unavailable — never filled with an estimate.
    */
   const radarData: RadarDatum[] = profile.dimensions.map((d: ProfileDimension) => ({
-    subject: d.available ? d.label : `${d.label}（暂无数据）`,
+    subject: d.available ? d.label : t('analytics.radar.subjectNoData', { label: d.label }),
     score: d.score ?? 0,
     hasData: d.available,
     fullMark: 100,
@@ -127,13 +198,24 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
     detail: d.detail,
   }));
 
-  const indicatorRows = buildIndicatorRows(sessions);
+  const indicatorRows = buildIndicatorRows(t, sessions);
   const recordedTasks = indicatorRows.filter((row) => row.record !== null).length;
+
+  const locale = lang === 'zh' ? 'zh-CN' : 'en-US';
+  const dateTimeFormat: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+  const formatTimestamp = (timestamp: string) => new Date(timestamp).toLocaleString(locale, dateTimeFormat);
 
   const handleExportJson = () => {
     // The exported report is derived from the stored measurements only; with no
     // (or insufficient) data it contains nulls plus an explicit explanation.
-    const report = buildReport(sessions, cognitiveLoad);
+    // It is rendered in the language the participant is currently using.
+    const report = buildReport(sessions, cognitiveLoad, lang);
 
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -151,7 +233,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
   };
 
   const handleClear = () => {
-    if (typeof window !== 'undefined' && !window.confirm('确定要清除本浏览器会话中记录的全部测验数据吗？此操作不可撤销。')) {
+    if (typeof window !== 'undefined' && !window.confirm(t('analytics.confirmClear'))) {
       return;
     }
     clearSessions();
@@ -166,16 +248,15 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                多维神经认知画像 (Neuro-Cognitive Profiler)
+                {t('analytics.badge')}
               </span>
-              <span className="text-xs text-slate-500 font-mono">仅基于实际完成的测验记录</span>
+              <span className="text-xs text-slate-500 font-mono">{t('analytics.badgeNote')}</span>
             </div>
-            <h2 className="text-xl font-bold text-slate-900 mt-1">分类与模式识别能力多维评估报告</h2>
+            <h2 className="text-xl font-bold text-slate-900 mt-1">{t('analytics.title')}</h2>
             <p className="text-xs text-slate-600 max-w-3xl mt-0.5">
-              本页所有数值均由您在本机实际完成的测验记录计算得出（WCST / WPT / ID/ED / Gabor / 原型畸变）。
-              未完成或样本量不足的维度一律显示为
-              <span className="font-semibold text-slate-900">“暂无数据”</span>
-              ，系统不会用示范值或估计值填补。
+              {t('analytics.intro')}{' '}
+              <span className="font-semibold text-slate-900">{t('analytics.introNoData')}</span>
+              {t('analytics.introTail')}
             </p>
           </div>
 
@@ -185,7 +266,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
               className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors shadow-xs cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" aria-hidden="true" />
-              导出评估报告 (JSON)
+              {t('analytics.action.export')}
             </button>
             <button
               onClick={handleClear}
@@ -193,7 +274,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-              清除记录
+              {t('analytics.action.clear')}
             </button>
           </div>
         </div>
@@ -211,18 +292,19 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
       >
         <div className="font-bold flex items-center gap-1.5 mb-1">
           <Database className="w-4 h-4" aria-hidden="true" />
-          数据状态：
+          {t('analytics.status.heading')}
           {sessions.length === 0
-            ? '尚无任何测验记录'
+            ? t('analytics.status.none')
             : profile.unavailableLabels.length > 0
-            ? `部分维度可用（${profile.compositeSampleCount}/6）`
-            : '全部 6 个维度均可用'}
+            ? t('analytics.status.partial', { available: profile.compositeSampleCount })
+            : t('analytics.status.complete')}
         </div>
         <p>
-          已记录会话 <strong>{sessions.length}</strong> 条（覆盖 {recordedTasks}/5 个测验范式），保存在本浏览器
-          sessionStorage 中，关闭标签页即清除。需要说明的是：
-          <strong>本系统不输出临床结论</strong>
-          （如“正常”“优异”“极低耗损”），此类判读需要标准化常模与临床访谈；导出的报告同样只包含实测数据与数据不足的明确说明。
+          {t('analytics.status.summaryPrefix')}
+          <strong>{sessions.length}</strong>
+          {t('analytics.status.summaryMid', { covered: recordedTasks })}
+          <strong>{t('analytics.status.noClinical')}</strong>
+          {t('analytics.status.summaryTail')}
         </p>
         {profile.unavailableLabels.length > 0 && (
           <ul className="mt-2 list-disc pl-5 space-y-0.5">
@@ -230,15 +312,20 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
               .filter((d) => !d.available)
               .map((d) => (
                 <li key={d.key}>
-                  <strong>{d.label}</strong>：{d.explanation}
+                  <strong>{d.label}</strong>
+                  {t('analytics.dimensionJoin')}
+                  {d.explanation}
                 </li>
               ))}
           </ul>
         )}
         {sessions.length === 0 && (
           <p className="mt-2">
-            导出的报告在无数据时不会包含任何分数：<code className="font-mono">dataStatus = &quot;insufficient&quot;</code>
-            ，6 个维度全部为 <code className="font-mono">null</code>，并逐条说明缺失原因与系统局限。
+            {t('analytics.status.emptyPrefix')}
+            <code className="font-mono">{t('analytics.inlineCodeInsufficient')}</code>
+            {t('analytics.status.emptyMid')}
+            <code className="font-mono">{t('analytics.inlineCodeNull')}</code>
+            {t('analytics.status.emptyTail')}
           </p>
         )}
       </div>
@@ -250,13 +337,11 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
           <div className="w-full flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Brain className="w-4 h-4 text-indigo-600" aria-hidden="true" />
-              脑区神经认知能力雷达图 (Cognitive Radar)
+              {t('analytics.radar.title')}
             </h3>
-            <span className="text-xs text-slate-400 font-mono">满分 100</span>
+            <span className="text-xs text-slate-400 font-mono">{t('analytics.radar.fullMark')}</span>
           </div>
-          <p className="text-xs text-slate-500 w-full mb-4">
-            每一轴均来自一次完整测验的实测值；标有“暂无数据”的轴在图上以 0 绘制，仅表示尚无测量，不代表能力为 0。
-          </p>
+          <p className="text-xs text-slate-500 w-full mb-4">{t('analytics.radar.note')}</p>
 
           <div className="w-full h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -273,7 +358,9 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
                       <div className="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 max-w-[240px]">
                         <div className="font-semibold">{datum.subject}</div>
                         <div className="mt-0.5">
-                          {datum.hasData ? `${datum.score} 分` : '暂无数据（未完成该测验或样本量不足）'}
+                          {datum.hasData
+                            ? t('analytics.radar.tooltipScore', { score: datum.score })
+                            : t('analytics.radar.tooltipNoData')}
                         </div>
                         {datum.hasData && <div className="mt-1 text-[11px] text-slate-300">{datum.detail}</div>}
                       </div>
@@ -281,7 +368,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
                   }}
                 />
                 <Radar
-                  name="受试者实测分"
+                  name={t('analytics.radar.series')}
                   dataKey="score"
                   stroke="#4f46e5"
                   fill="#6366f1"
@@ -293,18 +380,20 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
 
           <div className="w-full grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100 text-xs">
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-slate-500 block text-[11px]">综合指数（可用维度均值）</span>
+              <span className="text-slate-500 block text-[11px]">{t('analytics.radar.composite')}</span>
               <span className="font-bold font-mono text-indigo-600 text-base">
-                {profile.compositeIndex === null ? '暂无数据' : `${profile.compositeIndex} / 100`}
+                {profile.compositeIndex === null
+                  ? t('analytics.introNoData')
+                  : t('analytics.radar.compositeValue', { score: profile.compositeIndex })}
               </span>
               <span className="text-[10px] text-slate-400 block mt-0.5">
-                由 {profile.compositeSampleCount} 个可用维度取平均；不可用维度不参与计算
+                {t('analytics.radar.compositeNote', { count: profile.compositeSampleCount })}
               </span>
             </div>
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-slate-500 block text-[11px]">已记录会话数</span>
+              <span className="text-slate-500 block text-[11px]">{t('analytics.radar.sessionCount')}</span>
               <span className="font-bold font-mono text-slate-800 text-base">{sessions.length}</span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">每个维度取该范式最近一次完整记录</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">{t('analytics.radar.sessionCountNote')}</span>
             </div>
           </div>
         </div>
@@ -314,7 +403,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
             <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-indigo-600" aria-hidden="true" />
-              维度得分与计算依据（逐项可追溯）
+              {t('analytics.dims.title')}
             </h3>
 
             <div className="space-y-2.5 text-xs">
@@ -337,11 +426,17 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
                           : 'text-slate-500 bg-slate-100 border-slate-200'
                       }`}
                     >
-                      {dim.available ? `${dim.score} / 100` : '暂无数据'}
+                      {dim.available
+                        ? t('analytics.dims.score', { score: dim.score ?? 0 })
+                        : t('analytics.introNoData')}
                     </span>
                   </div>
                   <p className="text-slate-600 mt-1">{dim.detail || dim.explanation}</p>
-                  {dim.available && <p className="text-[11px] text-slate-400 mt-0.5">计算依据：{dim.explanation}</p>}
+                  {dim.available && (
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {t('analytics.dims.basis', { explanation: dim.explanation })}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -354,22 +449,20 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <Award className="w-4 h-4 text-amber-600" aria-hidden="true" />
-            各测验最近一次实测指标
+            {t('analytics.indicators.title')}
           </h3>
-          <span className="text-xs text-slate-400 font-mono">未完成的范式显示“无记录”</span>
+          <span className="text-xs text-slate-400 font-mono">{t('analytics.indicators.note')}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {indicatorRows.map(({ task, record, rows }) => (
             <div key={task} className="p-3 rounded-lg border border-slate-100 bg-slate-50">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-800">{TASK_LABELS[task]}</span>
+                <span className="text-xs font-semibold text-slate-800">{t(TASK_LABELS[task])}</span>
                 {record ? (
-                  <span className="text-[10px] font-mono text-slate-400">
-                    {new Date(record.timestamp).toLocaleString('zh-CN')}
-                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">{formatTimestamp(record.timestamp)}</span>
                 ) : (
-                  <span className="text-[10px] font-mono text-slate-400">无记录</span>
+                  <span className="text-[10px] font-mono text-slate-400">{t('analytics.indicators.noRecord')}</span>
                 )}
               </div>
 
@@ -384,12 +477,15 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
                     ))}
                   </dl>
                   <p className="text-[10px] text-slate-400 mt-2">
-                    负荷设置：{describeLoad(record.loadConfig)} · 用时 {record.durationSeconds}s
+                    {t('analytics.indicators.load', {
+                      load: describeLoad(record.loadConfig, lang),
+                      seconds: record.durationSeconds,
+                    })}
                   </p>
                 </>
               ) : (
                 <p className="text-[11px] text-slate-500 mt-2">
-                  暂无数据：完成一次完整的{task === 'gabor' ? ' Gabor 分类试次并提交' : '测验'}后，此处会显示实测指标。
+                  {task === 'gabor' ? t('analytics.indicators.emptyGabor') : t('analytics.indicators.empty')}
                 </p>
               )}
             </div>
@@ -397,50 +493,52 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
         </div>
 
         <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900">
-          <strong>关于临床结论：</strong>
-          本系统不生成“正常 / 优异 / 极低耗损”等判定语句。此类结论必须依托标准化常模、受试者人口学信息与临床访谈，
-          而本工具没有对应常模数据，因此报告的 <code className="font-mono">notProvided</code> 字段会明确说明这些内容未被提供。
+          <strong>{t('analytics.verdict.heading')}</strong>
+          {t('analytics.verdict.body')}
+          <code className="font-mono">{t('analytics.inlineCodeNotProvided')}</code>
+          {t('analytics.verdict.tail')}
         </div>
       </div>
 
       {/* Session history */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-slate-900">测验记录流水（{sessions.length} 条）</h3>
-          <span className="text-xs text-slate-400 font-mono">最新记录在最下方</span>
+          <h3 className="text-sm font-bold text-slate-900">{t('analytics.history.title', { count: sessions.length })}</h3>
+          <span className="text-xs text-slate-400 font-mono">{t('analytics.history.note')}</span>
         </div>
 
         {sessions.length === 0 ? (
-          <p className="text-xs text-slate-500 py-6 text-center">
-            暂无记录。请先完成任一测验（WCST / WPT / ID/ED / Gabor / 原型畸变）的完整一轮。
-          </p>
+          <p className="text-xs text-slate-500 py-6 text-center">{t('analytics.history.empty')}</p>
         ) : (
           <div className="overflow-x-auto max-h-72 overflow-y-auto border border-slate-200 rounded-lg">
             <table className="w-full text-left text-xs">
-              <caption className="sr-only">本机已记录的测验会话</caption>
+              <caption className="sr-only">{t('analytics.history.caption')}</caption>
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">
                 <tr>
-                  <th scope="col" className="py-2 px-3">时间</th>
-                  <th scope="col" className="py-2 px-3">测验</th>
-                  <th scope="col" className="py-2 px-3">正确率</th>
-                  <th scope="col" className="py-2 px-3">关键指标</th>
-                  <th scope="col" className="py-2 px-3">负荷设置</th>
-                  <th scope="col" className="py-2 px-3">用时</th>
+                  <th scope="col" className="py-2 px-3">{t('analytics.history.colTime')}</th>
+                  <th scope="col" className="py-2 px-3">{t('analytics.history.colTask')}</th>
+                  <th scope="col" className="py-2 px-3">{t('analytics.history.colAccuracy')}</th>
+                  <th scope="col" className="py-2 px-3">{t('analytics.history.colKeyMetric')}</th>
+                  <th scope="col" className="py-2 px-3">{t('analytics.history.colLoad')}</th>
+                  <th scope="col" className="py-2 px-3">{t('analytics.history.colDuration')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {sessions.map((record) => (
                   <tr key={record.id}>
-                    <td className="py-2 px-3 font-mono whitespace-nowrap">
-                      {new Date(record.timestamp).toLocaleString('zh-CN')}
-                    </td>
-                    <td className="py-2 px-3">{TASK_LABELS[record.task]}</td>
+                    <td className="py-2 px-3 font-mono whitespace-nowrap">{formatTimestamp(record.timestamp)}</td>
+                    <td className="py-2 px-3">{t(TASK_LABELS[record.task])}</td>
                     <td className="py-2 px-3 font-mono">{record.accuracy}%</td>
                     <td className="py-2 px-3">
-                      <span className="text-slate-500">{record.keyMetricName}：</span>
+                      <span className="text-slate-500">
+                        {record.keyMetricName}
+                        {t('analytics.dimensionJoin')}
+                      </span>
                       <span className="font-mono">{record.keyMetricValue}</span>
                     </td>
-                    <td className="py-2 px-3 text-[11px] text-slate-500">{describeLoad(record.loadConfig)}</td>
+                    <td className="py-2 px-3 text-[11px] text-slate-500">
+                      {describeLoad(record.loadConfig, lang)}
+                    </td>
                     <td className="py-2 px-3 font-mono text-slate-500">{record.durationSeconds}s</td>
                   </tr>
                 ))}

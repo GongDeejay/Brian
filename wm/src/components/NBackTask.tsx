@@ -8,6 +8,7 @@ import { fireConfetti } from '../utils/motion';
 import { downloadSessionJson, sessionFileName } from '../utils/exportJson';
 import { useTaskTimers } from '../hooks/useTaskTimers';
 import { useFocusGuard } from '../hooks/useFocusGuard';
+import { useI18n } from '../i18n';
 import { ProgressBar } from './ProgressBar';
 import { AbortControl } from './AbortControl';
 
@@ -22,7 +23,13 @@ const SYMBOLS = ['◆', '▲', '●', '■', '★', '✚', '✦', '⬢'];
 const COUNTDOWN_START = 3;
 const COUNTDOWN_STEP_MS = 900;
 
+/** 难度级别 [1, 2, 3] 的说明文案，顺序与按钮一一对应。 */
+const LEVEL_HINT_KEYS = ['nback.level1Hint', 'nback.level2Hint', 'nback.level3Hint'] as const;
+
 export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
+  const { t, tList, lang } = useI18n();
+  const levelHints = tList(LEVEL_HINT_KEYS);
+
   // Config state
   const [config, setConfig] = useState<NBackConfig>({
     n: 2,
@@ -202,7 +209,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
 
     if (trial.isTarget) {
       trial.result = 'miss';
-      if (feedbackMode === 'practice') setLastActionFeedback('✗ 漏报 (Miss)');
+      if (feedbackMode === 'practice') setLastActionFeedback(t('nback.feedbackMiss'));
     } else {
       trial.result = 'correct_rejection';
     }
@@ -250,17 +257,17 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
     if (trial.isTarget) {
       trial.result = 'hit';
       if (feedbackMode === 'practice') {
-        setLastActionFeedback('✓ 匹配成功 (Hit)');
+        setLastActionFeedback(t('nback.feedbackHit'));
         soundManager.playSuccess();
       }
     } else {
       trial.result = 'false_alarm';
       if (feedbackMode === 'practice') {
-        setLastActionFeedback('✗ 误报 (False Alarm)');
+        setLastActionFeedback(t('nback.feedbackFalseAlarm'));
         soundManager.playError();
       }
     }
-  }, [taskState, currentTrialIdx, isPaused, feedbackMode]);
+  }, [taskState, currentTrialIdx, isPaused, feedbackMode, t]);
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -326,7 +333,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
     const meanReactionTimeMs = rtCount > 0 ? totalRT / rtCount : 0;
 
     const resultData: NBackResult = {
-      date: new Date().toLocaleDateString('zh-CN'),
+      date: new Date().toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US'),
       n: config.n,
       mode: config.stimulusMode,
       totalTrials: config.totalTrials,
@@ -354,7 +361,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
   const handleExport = () => {
     if (!finalResult) return;
     downloadSessionJson(sessionFileName('nback'), {
-      app: '工作记忆训练与评估平台',
+      app: t('nback.exportApp'),
       task: 'nback',
       exportedAt: new Date().toISOString(),
       sessionDate: finalResult.date,
@@ -380,10 +387,21 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
     Math.max(0, config.totalTrials - (currentTrialIdx + 1)) * perTrialMs +
     (isStimulusVisible ? config.stimulusDuration : 0);
   const liveMessage = isPaused
-    ? '实验已暂停，等待继续'
-    : `第 ${currentTrialIdx + 1} 试次，共 ${config.totalTrials} 试次，${
-        isStimulusVisible ? '刺激呈现中' : '刺激间隔'
-      }`;
+    ? t('nback.livePaused')
+    : t('nback.liveTrial', {
+        current: currentTrialIdx + 1,
+        total: config.totalTrials,
+        phase: isStimulusVisible ? t('nback.phaseStimulus') : t('nback.phaseIsi'),
+      });
+
+  // Mode word used inside the "ready" headline (kept separate so that word
+  // order can differ between languages).
+  const readyMode =
+    config.stimulusMode === 'spatial'
+      ? t('nback.readySpatial')
+      : config.stimulusMode === 'letter'
+        ? t('nback.readyLetter')
+        : t('nback.readySymbol');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -393,13 +411,15 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                范式 1 · 动态更新与抑制控制
+                {t('nback.badge')}
               </span>
               <span className="text-xs text-slate-400 font-mono">Kirchner (1958)</span>
             </div>
-            <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight">N-back 任务训练与评估</h2>
+            <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight">{t('nback.title')}</h2>
             <p className="text-xs text-slate-400 mt-1">
-              要求在不断推移的信息流中，判断当前刺激是否与倒数第 <strong>{config.n}</strong> 步的刺激一致。用于评估背外侧前额叶皮层 (DLPFC) 的持续动态刷新能力。
+              {t('nback.introPre')}
+              <strong>{config.n}</strong>
+              {t('nback.introPost')}
             </p>
           </div>
 
@@ -410,7 +430,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition shadow-lg shadow-indigo-600/25 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>开始评估/训练</span>
+              <span>{t('nback.start')}</span>
             </button>
           )}
         </div>
@@ -423,12 +443,12 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
           <div className="md:col-span-1 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 space-y-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-200 border-b border-slate-800 pb-2">
               <Settings2 className="w-4 h-4 text-indigo-400" />
-              <span>参数调节与测试难度</span>
+              <span>{t('nback.configTitle')}</span>
             </div>
 
             {/* N-back level selector */}
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-medium">N-back 步长级别 (N)</label>
+              <label className="text-xs text-slate-400 font-medium">{t('nback.levelLabel')}</label>
               <div className="grid grid-cols-3 gap-2">
                 {[1, 2, 3].map((num) => (
                   <button
@@ -443,7 +463,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
                   >
                     {num}-Back
                     <span className="block text-[10px] font-normal opacity-75">
-                      {num === 1 ? '基础入门' : num === 2 ? '经典评估' : '高阶挑战'}
+                      {levelHints[num - 1]}
                     </span>
                   </button>
                 ))}
@@ -452,7 +472,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
 
             {/* Stimulus Mode */}
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-medium">刺激类型 (Stimulus Mode)</label>
+              <label className="text-xs text-slate-400 font-medium">{t('nback.stimulusModeLabel')}</label>
               <div className="grid grid-cols-3 gap-2">
                 {(['spatial', 'letter', 'symbol'] as NBackStimulusMode[]).map((mode) => (
                   <button
@@ -465,7 +485,11 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
                         : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {mode === 'spatial' ? '九宫格空间' : mode === 'letter' ? '字母序列' : '几何图形'}
+                    {mode === 'spatial'
+                      ? t('nback.modeSpatial')
+                      : mode === 'letter'
+                        ? t('nback.modeLetter')
+                        : t('nback.modeSymbol')}
                   </button>
                 ))}
               </div>
@@ -473,7 +497,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
 
             {/* Trials count */}
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-400 font-medium">试次数目 (Trials)</label>
+              <label className="text-xs text-slate-400 font-medium">{t('nback.trialsLabel')}</label>
               <div className="grid grid-cols-3 gap-2">
                 {[15, 25, 40].map((count) => (
                   <button
@@ -486,15 +510,15 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
                         : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {count} 次
+                    {t('nback.trialsCount', { count })}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Feedback mode: assessment (default) vs practice */}
-            <div className="space-y-1.5" role="group" aria-label="逐试次反馈模式">
-              <label className="text-xs text-slate-400 font-medium">逐试次反馈 (Feedback)</label>
+            <div className="space-y-1.5" role="group" aria-label={t('nback.feedbackGroupAria')}>
+              <label className="text-xs text-slate-400 font-medium">{t('nback.feedbackLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 {(['assessment', 'practice'] as TaskFeedbackMode[]).map((mode) => (
                   <button
@@ -508,12 +532,12 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
                         : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {mode === 'assessment' ? '评估模式（默认）' : '练习模式'}
+                    {mode === 'assessment' ? t('nback.modeAssessment') : t('nback.modePractice')}
                   </button>
                 ))}
               </div>
               <p className="text-[10px] text-slate-400 leading-relaxed">
-                评估模式不提供逐试次正误反馈（标准范式做法），以免引发策略改变与情绪唤醒污染测量，仅保留刺激起始提示音；练习模式保留完整的对错文本与音效。
+                {t('nback.feedbackNote')}
               </p>
             </div>
 
@@ -521,10 +545,16 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
             <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
               <div className="flex items-center gap-1.5 text-indigo-400 font-semibold">
                 <Info className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>操作指南</span>
+                <span>{t('nback.guideTitle')}</span>
               </div>
               <p>
-                观察中央刺激，若当前刺激与 <strong>{config.n} 步之前</strong> 出现的刺激完全相同，请立即按下 <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-mono">空格键</kbd> 或点击【匹配】。
+                {t('nback.guidePre')}
+                <strong>{t('nback.guideNBack', { n: config.n })}</strong>
+                {t('nback.guidePost')}
+                <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-mono">
+                  {t('nback.guideKeySpace')}
+                </kbd>
+                {t('nback.guideTail')}
               </p>
             </div>
           </div>
@@ -534,16 +564,22 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
             <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-4">
               <Zap className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-semibold text-white">已就绪：{config.n}-Back {config.stimulusMode === 'spatial' ? '空间' : config.stimulusMode === 'letter' ? '字母' : '图形'}训练</h3>
+            <h3 className="text-base font-semibold text-white">
+              {t('nback.readyTitle', { n: config.n, mode: readyMode })}
+            </h3>
             <p className="text-xs text-slate-400 max-w-md mt-1.5 leading-relaxed">
-              共 {config.totalTrials} 组刺激，单次刺激呈现 {config.stimulusDuration}ms，间隔 {config.isiDuration}ms。准备好你的工作记忆缓存！
+              {t('nback.readyDetail', {
+                total: config.totalTrials,
+                stimulus: config.stimulusDuration,
+                isi: config.isiDuration,
+              })}
             </p>
             <button
               id="btn-preview-start"
               onClick={startTask}
               className="mt-6 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm transition shadow-lg shadow-indigo-600/20"
             >
-              立刻开始实验
+              {t('nback.startNow')}
             </button>
           </div>
         </div>
@@ -553,15 +589,17 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
       {taskState === 'countdown' && (
         <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-12 flex flex-col items-center justify-center min-h-[380px] text-center">
           <div className="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-3">
-            {config.n}-Back 即将呈现
+            {t('nback.countdownLabel', { n: config.n })}
           </div>
           <div className="w-24 h-24 rounded-full bg-indigo-500/20 border-2 border-indigo-500 flex items-center justify-center text-5xl font-bold text-white shadow-xl shadow-indigo-500/20 motion-safe:animate-pulse">
             {countdown}
           </div>
           <p className="text-xs text-slate-400 mt-6">
-            保持注意力高度集中，注视屏幕中央
+            {t('nback.countdownFocus')}
           </p>
-          <div className="sr-only" aria-live="polite">{`${config.n}-back 任务将在 ${countdown} 秒后开始`}</div>
+          <div className="sr-only" aria-live="polite">
+            {t('nback.countdownSr', { n: config.n, seconds: countdown })}
+          </div>
         </div>
       )}
 
@@ -572,10 +610,10 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
           <div className="w-full flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-b border-slate-800 pb-3 mb-4">
             <div className="flex items-center gap-3">
               <span className="font-semibold text-indigo-300">
-                试次: {currentTrialIdx + 1} / {config.totalTrials}
+                {t('nback.trialCounter', { current: currentTrialIdx + 1, total: config.totalTrials })}
               </span>
               <span className="text-slate-500" aria-hidden="true">|</span>
-              <span>步长: {config.n}-Back</span>
+              <span>{t('nback.levelInline', { n: config.n })}</span>
             </div>
             <div className="flex items-center gap-3">
               {lastActionFeedback && (
@@ -605,16 +643,16 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
               role="alert"
               className="w-full mb-4 p-4 rounded-xl bg-amber-950/40 border border-amber-700/40 text-xs text-amber-200 space-y-2 text-center"
             >
-              <p className="font-semibold">检测到页面失去焦点，实验已暂停</p>
+              <p className="font-semibold">{t('nback.pausedTitle')}</p>
               <p className="leading-relaxed">
-                为保障测量有效性，被中断的试次数据不计入统计，继续后将从该试次的刺激呈现阶段重新开始。中断次数与累计离开时长会作为数据有效性指标随结果一并报告。
+                {t('nback.pausedBody')}
               </p>
               <button
                 id="btn-nback-resume"
                 onClick={handleResume}
                 className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition cursor-pointer"
               >
-                继续实验（重新呈现当前试次）
+                {t('nback.resume')}
               </button>
             </div>
           )}
@@ -670,13 +708,15 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
                   : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 active:scale-[0.98]'
               }`}
             >
-              <span>匹配！与前第 {config.n} 步相同</span>
+              <span>{t('nback.matchButton', { n: config.n })}</span>
               <kbd className="hidden sm:inline-block text-[11px] px-2 py-0.5 rounded bg-indigo-700/80 border border-indigo-400/30 text-white">
-                Space 或 J
+                {t('nback.keySpaceOrJ')}
               </kbd>
             </button>
             <p className="text-[11px] text-center text-slate-400">
-              若不同无需按键，刺激将在 {config.stimulusDuration + config.isiDuration}ms 后自动推进
+              {t('nback.noResponseHint', {
+                ms: config.stimulusDuration + config.isiDuration,
+              })}
             </p>
           </div>
         </div>
@@ -692,10 +732,10 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">
-                  {finalResult.n}-Back 动态更新任务评估结果
+                  {t('nback.resultTitle', { n: finalResult.n })}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  前额叶皮层执行功能与信号检测论分析
+                  {t('nback.resultSubtitle')}
                 </p>
               </div>
             </div>
@@ -705,7 +745,7 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>重新测试</span>
+              <span>{t('nback.restart')}</span>
             </button>
           </div>
 
@@ -720,13 +760,18 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
             <span>
               {finalResult.validity && !finalResult.validity.isValid ? (
-                <>
-                  数据有效性提示：本会话记录到 <strong>{finalResult.validity.interruptions}</strong> 次页面失去焦点，
-                  累计离开 <strong>{(finalResult.validity.totalAwayMs / 1000).toFixed(1)} 秒</strong>，
-                  其中 {finalResult.validity.trialRestarts} 个试次被重新呈现。解释结果时请考虑这些中断。
-                </>
+                t('nback.validityWarn', {
+                  interruptions: finalResult.validity.interruptions,
+                  seconds: (finalResult.validity.totalAwayMs / 1000).toFixed(1),
+                  restarts: finalResult.validity.trialRestarts,
+                })
               ) : (
-                <>数据有效性：整个会话未发生中断，焦点保持良好（反馈模式：{feedbackMode === 'assessment' ? '评估模式' : '练习模式'}）。</>
+                t('nback.validityOk', {
+                  mode:
+                    feedbackMode === 'assessment'
+                      ? t('nback.modeAssessment')
+                      : t('nback.modePractice'),
+                })
               )}
             </span>
           </div>
@@ -734,57 +779,61 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
           {/* Metric Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">信号敏感度 (d')</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('nback.dprimeLabel')}</span>
               <span className="text-2xl font-bold font-mono text-indigo-400">{finalResult.dPrime}</span>
               <span className="text-[10px] text-slate-400 block mt-1">
-                {finalResult.dPrime >= 2.5 ? '极高判别力' : finalResult.dPrime >= 1.5 ? '良好辨别力' : '一般/需提升'}
+                {finalResult.dPrime >= 2.5
+                  ? t('nback.dprimeHigh')
+                  : finalResult.dPrime >= 1.5
+                    ? t('nback.dprimeGood')
+                    : t('nback.dprimeFair')}
               </span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">综合正确率</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('nback.accuracyLabel')}</span>
               <span className="text-2xl font-bold font-mono text-emerald-400">
                 {(finalResult.accuracy * 100).toFixed(0)}%
               </span>
               <span className="text-[10px] text-slate-400 block mt-1">
-                含命中与正确拒绝
+                {t('nback.accuracyHint')}
               </span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">平均反应时</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('nback.meanRtLabel')}</span>
               <span className="text-2xl font-bold font-mono text-cyan-400">
                 {Math.round(finalResult.meanReactionTimeMs)}
                 <span className="text-xs text-slate-400 ml-1">ms</span>
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">命中决策延迟</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('nback.meanRtHint')}</span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">抑制失误 (虚报)</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('nback.inhibitionErrorsLabel')}</span>
               <span className="text-2xl font-bold font-mono text-amber-400">{finalResult.falseAlarms}</span>
               <span className="text-[10px] text-slate-400 block mt-1">
-                冲动抑制控制指标
+                {t('nback.inhibitionErrorsHint')}
               </span>
             </div>
           </div>
 
           {/* Detailed breakdown table */}
           <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 text-xs space-y-3">
-            <h4 className="font-semibold text-slate-200">信号检测论详细分布：</h4>
+            <h4 className="font-semibold text-slate-200">{t('nback.sdTitle')}</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/20">
                 <span className="text-emerald-400 block font-bold text-base">{finalResult.hits}</span>
-                <span className="text-slate-400 text-[11px]">命中 (Hit)</span>
+                <span className="text-slate-400 text-[11px]">{t('nback.sdHits')}</span>
               </div>
               <div className="p-2.5 rounded-lg bg-rose-950/20 border border-rose-500/20">
                 <span className="text-rose-400 block font-bold text-base">{finalResult.misses}</span>
-                <span className="text-slate-400 text-[11px]">漏报 (Miss)</span>
+                <span className="text-slate-400 text-[11px]">{t('nback.sdMisses')}</span>
               </div>
               <div className="p-2.5 rounded-lg bg-amber-950/20 border border-amber-500/20">
                 <span className="text-amber-400 block font-bold text-base">{finalResult.falseAlarms}</span>
-                <span className="text-slate-400 text-[11px]">虚报 (False Alarm)</span>
+                <span className="text-slate-400 text-[11px]">{t('nback.sdFalseAlarms')}</span>
               </div>
               <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
                 <span className="text-slate-300 block font-bold text-base">{finalResult.correctRejections}</span>
-                <span className="text-slate-400 text-[11px]">正确拒绝 (CR)</span>
+                <span className="text-slate-400 text-[11px]">{t('nback.sdCorrectRejections')}</span>
               </div>
             </div>
           </div>
@@ -796,14 +845,14 @@ export const NBackTask = ({ onSaveResult }: NBackTaskProps) => {
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>导出结果 (JSON)</span>
+              <span>{t('nback.export')}</span>
             </button>
             <button
               id="btn-nback-return-idle"
               onClick={() => setTaskState('idle')}
               className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition cursor-pointer"
             >
-              完成并返回配置
+              {t('nback.backToConfig')}
             </button>
           </div>
         </div>

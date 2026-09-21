@@ -7,6 +7,7 @@ import { fireConfetti } from '../utils/motion';
 import { downloadSessionJson, sessionFileName } from '../utils/exportJson';
 import { useTaskTimers } from '../hooks/useTaskTimers';
 import { useFocusGuard } from '../hooks/useFocusGuard';
+import { useI18n } from '../i18n';
 import { ProgressBar } from './ProgressBar';
 import { AbortControl } from './AbortControl';
 
@@ -15,6 +16,9 @@ interface OSPANTaskProps {
 }
 
 const POOL_LETTERS = ['F', 'P', 'Q', 'R', 'S', 'T', 'W', 'X', 'L', 'B', 'M', 'K'];
+
+/** 两段式双任务说明的三条文案（数组型，渲染时用 tList）。 */
+const GUIDE_KEYS = ['ospan.guideMath', 'ospan.guideLetter', 'ospan.guideRecall'] as const;
 
 /** Target letter presentation time (ms). */
 const LETTER_DURATION_MS = 1100;
@@ -59,6 +63,9 @@ function generateMathProblem(): MathProblem {
 }
 
 export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
+  const { t, tList, lang } = useI18n();
+  const guideSteps = tList(GUIDE_KEYS);
+
   // Config: spans to test. Default: spans 2, 3, 4, 5
   const [testMode, setTestMode] = useState<'standard' | 'quick'>('standard');
 
@@ -197,10 +204,10 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
     if (feedbackMode === 'practice') {
       if (isMathCorrect) {
         soundManager.playSuccess();
-        setLastFeedback('✓ 运算正确');
+        setLastFeedback(t('ospan.feedbackMathCorrect'));
       } else {
         soundManager.playError();
-        setLastFeedback('✗ 运算失误');
+        setLastFeedback(t('ospan.feedbackMathWrong'));
       }
     }
 
@@ -296,10 +303,12 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
     if (feedbackMode === 'practice') {
       if (allMatch) {
         soundManager.playSuccess();
-        setLastFeedback('✓ 本序列完全正确');
+        setLastFeedback(t('ospan.feedbackPerfect'));
       } else {
         soundManager.playError();
-        setLastFeedback(`✗ 序位正确 ${correctCount} / ${targetLetters.length}`);
+        setLastFeedback(
+          t('ospan.feedbackPartial', { correct: correctCount, total: targetLetters.length })
+        );
       }
     }
 
@@ -390,7 +399,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
     const meanMathRT = mathResponses.length > 0 ? totalMathRT / mathResponses.length : 0;
 
     const result: OSPANResult = {
-      date: new Date().toLocaleDateString('zh-CN'),
+      date: new Date().toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US'),
       absoluteScore,
       totalScore,
       maxPossibleScore,
@@ -418,7 +427,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
   const handleExport = () => {
     if (!finalResult) return;
     downloadSessionJson(sessionFileName('ospan'), {
-      app: '工作记忆训练与评估平台',
+      app: t('ospan.exportApp'),
       task: 'ospan',
       exportedAt: new Date().toISOString(),
       sessionDate: finalResult.date,
@@ -445,14 +454,18 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
     Math.max(0, totalItems - completedItems) * ITEM_ESTIMATE_MS +
     Math.max(0, setsRef.current.length - currentSetIdx) * RECALL_ESTIMATE_MS;
   const liveMessage = isPaused
-    ? '实验已暂停，等待继续'
+    ? t('ospan.livePaused')
     : taskState === 'math'
-    ? `第 ${currentSetIdx + 1} 轮，跨度 ${currentSpan}，算题阶段第 ${currentItemIdx + 1} 题`
-    : taskState === 'letter'
-    ? '请记住当前字母'
-    : taskState === 'recall'
-    ? `第 ${currentSetIdx + 1} 轮回忆阶段，跨度 ${currentSpan}`
-    : '';
+      ? t('ospan.liveMath', {
+          set: currentSetIdx + 1,
+          span: currentSpan,
+          item: currentItemIdx + 1,
+        })
+      : taskState === 'letter'
+        ? t('ospan.liveLetter')
+        : taskState === 'recall'
+          ? t('ospan.liveRecall', { set: currentSetIdx + 1, span: currentSpan })
+          : '';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -462,13 +475,13 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                范式 2 · 高负荷信息加工与存储
+                {t('ospan.badge')}
               </span>
               <span className="text-xs text-slate-400 font-mono">Turner & Engle (1989)</span>
             </div>
-            <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight">复杂运算跨度任务 (OSPAN)</h2>
+            <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight">{t('ospan.title')}</h2>
             <p className="text-xs text-slate-400 mt-1">
-              经典双任务范式（Dual-task）：一边做算术验算（加工负荷），一边记忆伴随字母（存储负荷），并严格按顺序回忆。流体智力 ($G_f$) 强预测指标。
+              {t('ospan.intro')}
             </p>
           </div>
 
@@ -479,7 +492,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm transition shadow-lg shadow-cyan-600/25 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>开始 OSPAN 评估</span>
+              <span>{t('ospan.start')}</span>
             </button>
           )}
         </div>
@@ -490,7 +503,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-1 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 space-y-4">
             <h3 className="text-sm font-semibold text-slate-200 border-b border-slate-800 pb-2">
-              测试模式选择
+              {t('ospan.modeTitle')}
             </h3>
 
             <div className="space-y-2">
@@ -503,8 +516,8 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
                     : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                <div className="font-semibold text-xs text-cyan-300">标准学术评估模式</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">跨度梯度 Span 2 → 5 (共4轮)</div>
+                <div className="font-semibold text-xs text-cyan-300">{t('ospan.modeStandard')}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{t('ospan.modeStandardDetail')}</div>
               </button>
 
               <button
@@ -516,13 +529,13 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
                     : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                <div className="font-semibold text-xs text-cyan-300">快速练习模式</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">跨度梯度 Span 2 → 4 (共3轮)</div>
+                <div className="font-semibold text-xs text-cyan-300">{t('ospan.modeQuick')}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">{t('ospan.modeQuickDetail')}</div>
               </button>
             </div>
 
-            <div className="space-y-1.5" role="group" aria-label="逐试次反馈模式">
-              <label className="text-xs text-slate-400 font-medium">逐试次反馈 (Feedback)</label>
+            <div className="space-y-1.5" role="group" aria-label={t('ospan.feedbackGroupAria')}>
+              <label className="text-xs text-slate-400 font-medium">{t('ospan.feedbackLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 {(['assessment', 'practice'] as TaskFeedbackMode[]).map((mode) => (
                   <button
@@ -536,22 +549,24 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
                         : 'bg-slate-800/40 border-slate-700/60 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    {mode === 'assessment' ? '评估模式（默认）' : '练习模式'}
+                    {mode === 'assessment' ? t('ospan.modeAssessment') : t('ospan.modePractice')}
                   </button>
                 ))}
               </div>
               <p className="text-[10px] text-slate-400 leading-relaxed">
-                评估模式不给出算式与序列的即时对错反馈（标准范式做法），避免诱发策略改变与情绪唤醒；练习模式保留完整的对错文本与音效。
+                {t('ospan.feedbackNote')}
               </p>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs text-slate-400 space-y-2">
               <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px]">
                 <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>学术规范说明 (Engle 准则)</span>
+                <span>{t('ospan.engleTitle')}</span>
               </div>
               <p className="text-[11px] leading-relaxed">
-                受试者必须认真运算每一道题，运算正确率需<strong>达到 85% 以上</strong>，评估结果方才符合学术有效性。切勿放弃运算专心背字母！
+                {t('ospan.engleBodyPre')}
+                <strong>{t('ospan.engleBodyStrong')}</strong>
+                {t('ospan.engleBodyPost')}
               </p>
             </div>
           </div>
@@ -560,20 +575,16 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
             <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-4">
               <Calculator className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-semibold text-white">两段式双任务交替机制</h3>
+            <h3 className="text-base font-semibold text-white">{t('ospan.mechanismTitle')}</h3>
             <div className="max-w-md text-xs text-slate-400 mt-2 space-y-2 text-left bg-slate-950/40 p-4 rounded-xl border border-slate-800">
-              <div className="flex items-start gap-2">
-                <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
-                <span><strong>运算阶段：</strong>判断算式是否正确，按键盘【Y/正确】或【N/错误】。</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
-                <span><strong>存储阶段：</strong>紧接着屏幕闪烁 1 个目标字母（持续1秒），存入记忆。</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
-                <span><strong>回忆阶段：</strong>每轮结束后，按精确的先后出现顺序点击键盘回忆。</span>
-              </div>
+              {guideSteps.map((step, stepIdx) => (
+                <div key={stepIdx} className="flex items-start gap-2">
+                  <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+                    {stepIdx + 1}
+                  </span>
+                  <span>{step}</span>
+                </div>
+              ))}
             </div>
 
             <button
@@ -581,7 +592,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
               onClick={startTask}
               className="mt-6 px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm transition shadow-lg shadow-cyan-600/20"
             >
-              准备就绪，开始测试
+              {t('ospan.startReady')}
             </button>
           </div>
         </div>
@@ -593,13 +604,13 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
           {/* Header Progress */}
           <div className="w-full flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-b border-slate-800 pb-3 mb-4">
             <div>
-              轮次: <span className="font-semibold text-cyan-300">{currentSetIdx + 1} / {totalSetsCount}</span>
+              {t('ospan.setLabel')}<span className="font-semibold text-cyan-300">{currentSetIdx + 1} / {totalSetsCount}</span>
               <span className="text-slate-500 mx-2" aria-hidden="true">|</span>
-              跨度负荷: <span className="text-white font-mono font-bold">Span {currentSpan}</span>
+              {t('ospan.spanLoadLabel')}<span className="text-white font-mono font-bold">Span {currentSpan}</span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-cyan-400 font-medium">
-                算题阶段 ({currentItemIdx + 1} / {currentSpan})
+                {t('ospan.mathPhase', { current: currentItemIdx + 1, total: currentSpan })}
               </span>
               <AbortControl onAbort={handleAbort} accent="cyan" />
             </div>
@@ -610,20 +621,20 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
 
           {isPaused && (
             <div role="alert" className="w-full mb-4 p-4 rounded-xl bg-amber-950/40 border border-amber-700/40 text-xs text-amber-200 space-y-2 text-center">
-              <p className="font-semibold">检测到页面失去焦点，实验已暂停</p>
-              <p className="leading-relaxed">中断次数与累计离开时长会作为数据有效性指标随结果一并报告。</p>
+              <p className="font-semibold">{t('ospan.pausedTitle')}</p>
+              <p className="leading-relaxed">{t('ospan.pausedBody')}</p>
               <button
                 id="btn-ospan-resume"
                 onClick={handleResume}
                 className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition cursor-pointer"
               >
-                继续实验
+                {t('ospan.resume')}
               </button>
             </div>
           )}
 
           <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-3">
-            请迅速验证等式是否成立
+            {t('ospan.mathPrompt')}
           </div>
 
           {feedbackMode === 'practice' && lastFeedback && (
@@ -638,7 +649,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-4">
-              思考并做出判断，请勿为了背诵而故意放弃计算
+              {t('ospan.mathHint')}
             </p>
           </div>
 
@@ -655,8 +666,8 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
                   : 'bg-emerald-600/90 hover:bg-emerald-500 shadow-emerald-600/20 cursor-pointer active:scale-[0.98]'
               }`}
             >
-              <span>等式正确 [ 是 ]</span>
-              <span className="text-[11px] font-normal opacity-80 mt-0.5">快捷键: Y 或 1</span>
+              <span>{t('ospan.answerTrue')}</span>
+              <span className="text-[11px] font-normal opacity-80 mt-0.5">{t('ospan.answerTrueHint')}</span>
             </button>
             <button
               id="btn-math-incorrect"
@@ -669,8 +680,8 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
                   : 'bg-rose-600/90 hover:bg-rose-500 shadow-rose-600/20 cursor-pointer active:scale-[0.98]'
               }`}
             >
-              <span>等式错误 [ 否 ]</span>
-              <span className="text-[11px] font-normal opacity-80 mt-0.5">快捷键: N 或 2</span>
+              <span>{t('ospan.answerFalse')}</span>
+              <span className="text-[11px] font-normal opacity-80 mt-0.5">{t('ospan.answerFalseHint')}</span>
             </button>
           </div>
         </div>
@@ -681,9 +692,9 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
         <div className="task-surface bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-8 flex flex-col items-center justify-center min-h-[400px] sm:min-h-[440px] text-center">
           <div className="w-full flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-b border-slate-800 pb-3 mb-4">
             <span>
-              轮次: <span className="font-semibold text-cyan-300">{currentSetIdx + 1} / {totalSetsCount}</span>
+              {t('ospan.setLabel')}<span className="font-semibold text-cyan-300">{currentSetIdx + 1} / {totalSetsCount}</span>
               <span className="text-slate-500 mx-2" aria-hidden="true">|</span>
-              跨度负荷: <span className="text-white font-mono font-bold">Span {currentSpan}</span>
+              {t('ospan.spanLoadLabel')}<span className="text-white font-mono font-bold">Span {currentSpan}</span>
             </span>
             <AbortControl onAbort={handleAbort} accent="cyan" />
           </div>
@@ -693,20 +704,20 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
 
           {isPaused && (
             <div role="alert" className="w-full mb-4 p-4 rounded-xl bg-amber-950/40 border border-amber-700/40 text-xs text-amber-200 space-y-2 text-center">
-              <p className="font-semibold">检测到页面失去焦点，实验已暂停</p>
-              <p className="leading-relaxed">继续后当前字母会重新呈现一次，以避免编码被中断的残缺刺激。</p>
+              <p className="font-semibold">{t('ospan.pausedTitle')}</p>
+              <p className="leading-relaxed">{t('ospan.pausedBodyLetter')}</p>
               <button
                 id="btn-ospan-resume-letter"
                 onClick={handleResume}
                 className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition cursor-pointer"
               >
-                继续实验（重新呈现当前字母）
+                {t('ospan.resumeLetter')}
               </button>
             </div>
           )}
 
           <div className="text-xs font-semibold text-cyan-400 tracking-wider uppercase mb-3">
-            牢记此字母 (第 {currentItemIdx + 1} / {currentSpan} 个)
+            {t('ospan.letterPrompt', { current: currentItemIdx + 1, total: currentSpan })}
           </div>
 
           <div className="w-36 h-36 rounded-3xl bg-slate-950 border-2 border-cyan-500/50 flex items-center justify-center shadow-2xl shadow-cyan-500/10 animate-scale-in">
@@ -716,7 +727,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
           </div>
 
           <p className="text-xs text-slate-400 mt-6">
-            存入工作记忆暂存区...
+            {t('ospan.letterStoring')}
           </p>
         </div>
       )}
@@ -726,10 +737,10 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
         <div className="task-surface bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-8 flex flex-col items-center min-h-[420px] sm:min-h-[460px]">
           <div className="w-full flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 border-b border-slate-800 pb-3 mb-4">
             <span className="text-cyan-300 font-semibold">
-              序列回忆阶段 · 跨度负荷: Span {currentSpan}
+              {t('ospan.recallPhase', { span: currentSpan })}
             </span>
             <div className="flex items-center gap-3">
-              <span className="hidden sm:inline">请按【出现顺序】依次点击对应字母</span>
+              <span className="hidden sm:inline">{t('ospan.recallOrder')}</span>
               <AbortControl onAbort={handleAbort} accent="cyan" />
             </div>
           </div>
@@ -739,14 +750,14 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
 
           {isPaused && (
             <div role="alert" className="w-full mb-4 p-4 rounded-xl bg-amber-950/40 border border-amber-700/40 text-xs text-amber-200 space-y-2 text-center">
-              <p className="font-semibold">检测到页面失去焦点，实验已暂停</p>
-              <p className="leading-relaxed">中断次数与累计离开时长会作为数据有效性指标随结果一并报告。</p>
+              <p className="font-semibold">{t('ospan.pausedTitle')}</p>
+              <p className="leading-relaxed">{t('ospan.pausedBody')}</p>
               <button
                 id="btn-ospan-resume-recall"
                 onClick={handleResume}
                 className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition cursor-pointer"
               >
-                继续回忆与作答
+                {t('ospan.resumeRecall')}
               </button>
             </div>
           )}
@@ -758,14 +769,14 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
           {/* Slots display */}
           <div className="w-full max-w-md my-4">
             <div className="text-[11px] text-slate-400 mb-2 flex justify-between">
-              <span>已记录序列 ({userRecalledSequence.length} / {currentSpan})</span>
+              <span>{t('ospan.recordedSequence', { current: userRecalledSequence.length, total: currentSpan })}</span>
               {userRecalledSequence.length > 0 && (
                 <button
                   id="btn-ospan-undo"
                   onClick={handleUndoLetter}
                   className="text-cyan-400 hover:underline cursor-pointer"
                 >
-                  撤销上一个
+                  {t('ospan.undo')}
                 </button>
               )}
             </div>
@@ -825,8 +836,11 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
               }`}
             >
               {hasSubmittedRecall
-                ? '已提交本序列'
-                : `提交该轮回忆 (${userRecalledSequence.length} / ${currentSpan})`}
+                ? t('ospan.submitted')
+                : t('ospan.submit', {
+                    current: userRecalledSequence.length,
+                    total: currentSpan,
+                  })}
             </button>
           </div>
         </div>
@@ -842,10 +856,10 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white">
-                  复杂运算跨度 (OSPAN) 评估报告
+                  {t('ospan.resultTitle')}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Turner & Engle (1989) 经典流体智力容量量化
+                  {t('ospan.resultSubtitle')}
                 </p>
               </div>
             </div>
@@ -855,7 +869,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>重新测试</span>
+              <span>{t('ospan.restart')}</span>
             </button>
           </div>
 
@@ -870,13 +884,18 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
             <span>
               {finalResult.validity && !finalResult.validity.isValid ? (
-                <>
-                  数据有效性提示：本会话记录到 <strong>{finalResult.validity.interruptions}</strong> 次页面失去焦点，
-                  累计离开 <strong>{(finalResult.validity.totalAwayMs / 1000).toFixed(1)} 秒</strong>，
-                  其中 {finalResult.validity.trialRestarts} 个项目被重新呈现。解释结果时请考虑这些中断。
-                </>
+                t('ospan.validityWarn', {
+                  interruptions: finalResult.validity.interruptions,
+                  seconds: (finalResult.validity.totalAwayMs / 1000).toFixed(1),
+                  restarts: finalResult.validity.trialRestarts,
+                })
               ) : (
-                <>数据有效性：整个会话未发生中断，焦点保持良好（反馈模式：{feedbackMode === 'assessment' ? '评估模式' : '练习模式'}）。</>
+                t('ospan.validityOk', {
+                  mode:
+                    feedbackMode === 'assessment'
+                      ? t('ospan.modeAssessment')
+                      : t('ospan.modePractice'),
+                })
               )}
             </span>
           </div>
@@ -896,13 +915,16 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
             )}
             <div>
               <span className="font-bold text-sm block">
-                {finalResult.mathAccuracy >= 0.85 ? '学术有效性：有效评估 (Valid OSPAN)' : '学术有效性警告：运算正确率低于 85%'}
+                {finalResult.mathAccuracy >= 0.85 ? t('ospan.validTitle') : t('ospan.validWarnTitle')}
               </span>
               <p className="opacity-90 mt-1">
-                运算阶段正确率为 <strong>{(finalResult.mathAccuracy * 100).toFixed(0)}%</strong>。
-                {finalResult.mathAccuracy >= 0.85
-                  ? '符合 Engle 心理测量学双任务标准，表明受试者在充分加工的同时保持了高负荷存储。'
-                  : '心理测量学标准要求运算正确率达 85% 以上，以确保没有通过牺牲加工负荷来单边增加记忆得分。'}
+                {t('ospan.validBodyPre')}
+                <strong>
+                  {t('ospan.accuracyPct', {
+                    accuracy: (finalResult.mathAccuracy * 100).toFixed(0),
+                  })}
+                </strong>
+                {finalResult.mathAccuracy >= 0.85 ? t('ospan.validBodyValid') : t('ospan.validBodyWarn')}
               </p>
             </div>
           </div>
@@ -910,41 +932,41 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
           {/* Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">绝对 OSPAN 得分</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('ospan.absoluteScore')}</span>
               <span className="text-2xl font-bold font-mono text-cyan-400">
                 {finalResult.absoluteScore}
                 <span className="text-xs text-slate-400 font-normal ml-1">/ {finalResult.maxPossibleScore}</span>
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">全对序列跨度和</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('ospan.absoluteScoreHint')}</span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">总回忆项目数</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('ospan.totalScore')}</span>
               <span className="text-2xl font-bold font-mono text-indigo-400">
                 {finalResult.totalScore}
                 <span className="text-xs text-slate-400 font-normal ml-1">/ {finalResult.maxPossibleScore}</span>
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">序位完全正确项</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('ospan.totalScoreHint')}</span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">运算加工正确率</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('ospan.mathAccuracy')}</span>
               <span className="text-2xl font-bold font-mono text-emerald-400">
                 {(finalResult.mathAccuracy * 100).toFixed(0)}%
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">标准阈值 ≥85%</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('ospan.mathAccuracyHint')}</span>
             </div>
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80">
-              <span className="text-[11px] text-slate-400 block mb-1">算术平均决策耗时</span>
+              <span className="text-[11px] text-slate-400 block mb-1">{t('ospan.meanMathRt')}</span>
               <span className="text-2xl font-bold font-mono text-amber-400">
                 {Math.round(finalResult.meanMathRT)}
                 <span className="text-xs text-slate-400 font-normal ml-1">ms</span>
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">加工速度指标</span>
+              <span className="text-[10px] text-slate-400 block mt-1">{t('ospan.meanMathRtHint')}</span>
             </div>
           </div>
 
           {/* Sets Breakdown Details */}
           <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800 text-xs space-y-3">
-            <h4 className="font-semibold text-slate-200">各跨度序列回忆复盘：</h4>
+            <h4 className="font-semibold text-slate-200">{t('ospan.breakdownTitle')}</h4>
             <div className="space-y-2">
               {finalResult.sets.map((set, idx) => (
                 <div
@@ -954,13 +976,13 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
                   <div className="flex items-center gap-3">
                     <span className="font-mono font-bold text-cyan-300">Span {set.spanLength}</span>
                     <div className="flex gap-1.5 items-center">
-                      <span className="text-slate-400">目标:</span>
+                      <span className="text-slate-400">{t('ospan.targetLabel')}</span>
                       <span className="font-mono text-white font-semibold">[{set.targetLetters.join(' - ')}]</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex gap-1.5 items-center">
-                      <span className="text-slate-400">你回忆:</span>
+                      <span className="text-slate-400">{t('ospan.recalledLabel')}</span>
                       <span className="font-mono text-slate-200">[{set.recalledLetters.join(' - ')}]</span>
                     </div>
                     <span
@@ -970,7 +992,7 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
                           : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                       }`}
                     >
-                      {set.allCorrect ? '完全正确' : '部分/失误'}
+                      {set.allCorrect ? t('ospan.setPerfect') : t('ospan.setImperfect')}
                     </span>
                   </div>
                 </div>
@@ -985,14 +1007,14 @@ export const OSPANTask = ({ onSaveResult }: OSPANTaskProps) => {
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>导出结果 (JSON)</span>
+              <span>{t('ospan.export')}</span>
             </button>
             <button
               id="btn-ospan-return-idle"
               onClick={() => setTaskState('idle')}
               className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition cursor-pointer"
             >
-              完成并返回模式选择
+              {t('ospan.backToConfig')}
             </button>
           </div>
         </div>

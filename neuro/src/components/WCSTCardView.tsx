@@ -1,5 +1,6 @@
 import React from 'react';
 import { WCSTCard, WCSTColor, WCSTShape } from '../types';
+import { useI18n, type MessageKey } from '../i18n';
 
 interface Props {
   card: WCSTCard;
@@ -16,22 +17,28 @@ interface Props {
   disabled?: boolean;
 }
 
-const COLOR_NAMES: Record<WCSTColor, string> = {
-  red: '红色',
-  green: '绿色',
-  yellow: '黄色',
-  blue: '蓝色',
+// Colour/shape labels live in the message catalogue so English mode never falls
+// back to Chinese on the visible reference-card badge.
+const COLOR_KEYS: Record<WCSTColor, MessageKey> = {
+  red: 'wcst.card.color.red',
+  green: 'wcst.card.color.green',
+  yellow: 'wcst.card.color.yellow',
+  blue: 'wcst.card.color.blue',
 };
 
-const SHAPE_NAMES: Record<WCSTShape, string> = {
-  triangle: '三角形',
-  star: '星形',
-  cross: '十字形',
-  circle: '圆形',
+const SHAPE_KEYS: Record<WCSTShape, MessageKey> = {
+  triangle: 'wcst.card.shape.triangle',
+  star: 'wcst.card.shape.star',
+  cross: 'wcst.card.shape.cross',
+  circle: 'wcst.card.shape.circle',
 };
 
-export const describeWCSTCard = (card: WCSTCard): string =>
-  `${COLOR_NAMES[card.color]}${SHAPE_NAMES[card.shape]} ${card.number} 个`;
+const SHAPE_PLURAL_KEYS: Record<WCSTShape, MessageKey> = {
+  triangle: 'wcst.card.shape.trianglePlural',
+  star: 'wcst.card.shape.starPlural',
+  cross: 'wcst.card.shape.crossPlural',
+  circle: 'wcst.card.shape.circlePlural',
+};
 
 export const WCSTCardView: React.FC<Props> = ({
   card,
@@ -44,6 +51,18 @@ export const WCSTCardView: React.FC<Props> = ({
   ariaLabel,
   disabled = false,
 }) => {
+  const { t } = useI18n();
+
+  /** Localised card description, e.g. "3 blue crosses" / "蓝色圆形 3 个". */
+  const describeCard = (target: WCSTCard): string => {
+    const plural = target.number !== 1;
+    return t(plural ? 'wcst.card.describePlural' : 'wcst.card.describe', {
+      count: target.number,
+      color: t(COLOR_KEYS[target.color]),
+      shape: t(plural ? SHAPE_PLURAL_KEYS[target.shape] : SHAPE_KEYS[target.shape]),
+    });
+  };
+
   // Color palette with high-contrast accessibility
   const getColorHex = (color: WCSTColor): string => {
     switch (color) {
@@ -128,7 +147,8 @@ export const WCSTCardView: React.FC<Props> = ({
   };
 
   const isInteractive = Boolean(onClick);
-  const accessibleName = ariaLabel ?? (isReference ? `基准卡片 ${referenceIndex}：${describeWCSTCard(card)}` : describeWCSTCard(card));
+  const accessibleName =
+    ariaLabel ?? (isReference ? t('wcst.reference.cardAria', { index: referenceIndex ?? '', card: describeCard(card) }) : describeCard(card));
 
   return (
     <div
@@ -158,7 +178,7 @@ export const WCSTCardView: React.FC<Props> = ({
       {/* Reference card badge */}
       {isReference && (
         <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-mono font-bold border border-slate-200">
-          基准 #{referenceIndex}
+          {t('wcst.reference.badge', { index: referenceIndex ?? '' })}
         </div>
       )}
 

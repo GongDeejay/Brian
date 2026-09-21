@@ -6,13 +6,13 @@
     <title>Brian · 认知神经科学实验平台</title>
     <meta
       name="description"
-      content="Brian 认知神经科学实验平台：包含工作记忆训练与评估（N-back / OSPAN / 变化检测 K 值）与 NeuroClassify 分类与模式识别测验（WCST / WPT / ID-ED / 原型畸变 / Gabor）。"
+      content="Brian 认知神经科学实验平台：包含分类与模式识别测验（WCST / WPT / ID-ED / 原型畸变 / Gabor）与工作记忆训练与评估（N-back / OSPAN / 变化检测 K 值）。"
     />
     <meta name="theme-color" content="#020617" />
     <meta property="og:title" content="Brian · 认知神经科学实验平台" />
     <meta
       property="og:description"
-      content="两个可在浏览器中直接运行的认知神经科学实验平台：工作记忆训练与评估、分类与模式识别测验。"
+      content="两个可在浏览器中直接运行的认知神经科学实验平台：分类与模式识别测验、工作记忆训练与评估。"
     />
     <meta property="og:type" content="website" />
     <link
@@ -72,11 +72,16 @@
         z-index: 1;
         max-width: 1080px;
         margin: 0 auto;
-        padding: clamp(2.5rem, 7vw, 5.5rem) clamp(1.15rem, 4vw, 2.5rem) 3rem;
+        padding: clamp(1.75rem, 6vw, 5rem) clamp(1.15rem, 4vw, 2.5rem) 3rem;
       }
 
-      header {
-        margin-bottom: clamp(2.25rem, 5vw, 3.5rem);
+      /* Language toggle row */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
       }
 
       .eyebrow {
@@ -92,7 +97,6 @@
         background: rgba(34, 211, 238, 0.07);
         border-radius: 999px;
         padding: 0.32rem 0.85rem;
-        margin-bottom: 1.4rem;
       }
 
       .eyebrow::before {
@@ -103,9 +107,43 @@
         background: var(--cyan);
       }
 
+      .lang-btn {
+        flex: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        min-height: 36px;
+        padding: 0 0.85rem;
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--muted);
+        background: rgba(148, 163, 184, 0.1);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+      }
+
+      .lang-btn:hover,
+      .lang-btn:focus-visible {
+        color: var(--text);
+        border-color: rgba(99, 102, 241, 0.5);
+        background: rgba(99, 102, 241, 0.14);
+      }
+
+      .lang-btn:focus-visible {
+        outline: 2px solid var(--indigo);
+        outline-offset: 2px;
+      }
+
+      header.intro {
+        margin-bottom: clamp(2.25rem, 5vw, 3.5rem);
+      }
+
       h1 {
         margin: 0 0 1rem;
-        font-size: clamp(2rem, 6vw, 3.1rem);
+        font-size: clamp(1.75rem, 5.4vw, 3.1rem);
         line-height: 1.16;
         letter-spacing: -0.02em;
         font-weight: 700;
@@ -311,12 +349,25 @@
   </head>
   <body>
     <div class="wrap">
-      <header>
-        <span class="eyebrow">Cognitive Neuroscience</span>
-        <h1>Brian <span class="grad">认知神经科学实验平台</span></h1>
-        <p class="lede">
-          两个完全在浏览器中运行的认知任务平台。基于经典实验范式实现，
-          <strong>无需安装、无需注册</strong>，打开即可开始测评；所有数据仅保存在本机浏览器中，不会上传。
+      <div class="topbar">
+        <span class="eyebrow" data-zh="认知神经科学" data-en="Cognitive Neuroscience">认知神经科学</span>
+        <button id="lang-toggle" class="lang-btn" type="button" aria-label="切换语言">
+          <span aria-hidden="true">🌐</span>
+          <span id="lang-label">EN</span>
+        </button>
+      </div>
+
+      <header class="intro">
+        <h1>
+          <span data-zh="Brian 认知神经科学实验平台" data-en="Brian Cognitive Neuroscience Platform">Brian 认知神经科学实验平台</span>
+        </h1>
+        <p
+          class="lede"
+          data-i18n-html
+          data-zh="两个完全在浏览器中运行的认知任务平台。基于经典实验范式实现，<strong>无需安装、无需注册</strong>，打开即可开始测评；可选择登录以便跨设备查看数据变化。"
+          data-en="Two cognitive task platforms that run entirely in your browser. Built on classic experimental paradigms — <strong>no installation, no sign-up required</strong> to begin; sign in optionally to review your data across devices."
+        >
+          两个完全在浏览器中运行的认知任务平台。基于经典实验范式实现，<strong>无需安装、无需注册</strong>，打开即可开始测评；可选择登录以便跨设备查看数据变化。
         </p>
       </header>
 
@@ -330,20 +381,24 @@
               <path d="M17.25 13.5v7.5M13.5 17.25h7.5" />
             </svg>
           </span>
-          <h2>NeuroClassify 分类与模式识别</h2>
-          <p>
-            围绕分类学习、规则发现与认知灵活性的一组测验，覆盖额叶执行功能的不同侧面，
-            并提供可调的认知负荷控制与结果分析看板。
+          <h2 data-zh="NeuroClassify 分类与模式识别" data-en="NeuroClassify — Categorisation & Pattern Recognition">
+            NeuroClassify 分类与模式识别
+          </h2>
+          <p
+            data-zh="围绕分类学习、规则发现与认知灵活性的一组测验，覆盖额叶执行功能的不同侧面，并提供可调的认知负荷控制与结果分析看板。"
+            data-en="A battery of tasks covering categorisation learning, rule discovery and cognitive flexibility, spanning different aspects of frontal executive function, with adjustable cognitive load and a results dashboard."
+          >
+            围绕分类学习、规则发现与认知灵活性的一组测验，覆盖额叶执行功能的不同侧面，并提供可调的认知负荷控制与结果分析看板。
           </p>
           <ul class="tags">
-            <li>WCST 卡片分类</li>
-            <li>ID/ED 定势转移</li>
-            <li>WPT 概率分类</li>
-            <li>原型畸变迁移</li>
-            <li>Gabor RB / II</li>
+            <li data-zh="WCST 卡片分类" data-en="WCST">WCST 卡片分类</li>
+            <li data-zh="ID/ED 定势转移" data-en="ID/ED set shifting">ID/ED 定势转移</li>
+            <li data-zh="WPT 概率分类" data-en="WPT">WPT 概率分类</li>
+            <li data-zh="原型畸变迁移" data-en="Prototype distortion">原型畸变迁移</li>
+            <li data-zh="Gabor RB / II" data-en="Gabor RB / II">Gabor RB / II</li>
           </ul>
           <span class="go">
-            进入平台
+            <span data-zh="进入平台" data-en="Enter platform">进入平台</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
@@ -357,20 +412,24 @@
               <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
             </svg>
           </span>
-          <h2>工作记忆训练与评估平台</h2>
-          <p>
-            从更新、存储容量与注意控制三个成分评估工作记忆，生成五维认知画像与综合指数，
-            并保留历史记录用于观察训练变化趋势。
+          <h2 data-zh="工作记忆训练与评估平台" data-en="Working Memory Training & Assessment">
+            工作记忆训练与评估平台
+          </h2>
+          <p
+            data-zh="从更新、存储容量与注意控制三个成分评估工作记忆，生成五维认知画像与综合指数，并保留历史记录用于观察训练变化趋势。"
+            data-en="Assesses working memory across updating, storage capacity and attentional control, producing a five-dimension cognitive profile and composite index, with history retained to track change over time."
+          >
+            从更新、存储容量与注意控制三个成分评估工作记忆，生成五维认知画像与综合指数，并保留历史记录用于观察训练变化趋势。
           </p>
           <ul class="tags">
             <li>N-back</li>
-            <li>OSPAN 复杂运算跨度</li>
-            <li>变化检测 · Cowan's K</li>
-            <li>d′ 信号检测论</li>
-            <li>认知画像</li>
+            <li data-zh="OSPAN 复杂运算跨度" data-en="OSPAN complex span">OSPAN 复杂运算跨度</li>
+            <li data-zh="变化检测 · Cowan's K" data-en="Change detection · Cowan's K">变化检测 · Cowan's K</li>
+            <li data-zh="d′ 信号检测论" data-en="d′ (SDT)">d′ 信号检测论</li>
+            <li data-zh="认知画像" data-en="Cognitive profile">认知画像</li>
           </ul>
           <span class="go">
-            进入平台
+            <span data-zh="进入平台" data-en="Enter platform">进入平台</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
@@ -378,18 +437,102 @@
         </a>
       </main>
 
-      <p class="note">
-        <strong>使用须知：</strong>本平台用于教学演示、自我训练与科普体验。
-        任务范式参考公开文献实现，但尚未经过标准化常模校验，
+      <p
+        class="note"
+        data-i18n-html
+        data-zh="<strong>使用须知：</strong>本平台用于教学演示、自我训练与科普体验。任务范式参考公开文献实现，但尚未经过标准化常模校验，<strong>结果不构成任何医学诊断或临床结论</strong>。如有认知健康方面的疑虑，请咨询专业医疗机构。登录后测评数据会保存到服务器；不登录时数据只留在本机浏览器。"
+        data-en="<strong>Please note:</strong> this platform is for teaching demonstrations, self-training and science outreach. The paradigms follow published literature but have not been norm-referenced, so <strong>results do not constitute a medical diagnosis or clinical conclusion</strong>. If you have concerns about cognitive health, please consult a qualified clinician. When signed in, assessment data is stored on the server; when signed out, it stays only in this browser."
+      >
+        <strong>使用须知：</strong>本平台用于教学演示、自我训练与科普体验。任务范式参考公开文献实现，但尚未经过常模校验，
         <strong>结果不构成任何医学诊断或临床结论</strong>。如有认知健康方面的疑虑，请咨询专业医疗机构。
       </p>
 
       <footer>
-        <span>Brian 认知神经科学实验平台</span>
+        <span data-zh="Brian 认知神经科学实验平台" data-en="Brian Cognitive Neuroscience Platform">Brian 认知神经科学实验平台</span>
         <span>
-          <a href="https://github.com/GongDeejay/Brian" rel="noopener">GitHub 源码</a>
+          <a href="https://github.com/GongDeejay/Brian" rel="noopener" data-zh="GitHub 源码" data-en="Source on GitHub">GitHub 源码</a>
         </span>
       </footer>
     </div>
+
+    <script>
+      /*
+       * 极简双语切换。语言偏好与两个子应用共用同一个 localStorage 键
+       * （`brian.lang`），因此在这里切换后，进入 /wm/ 或 /neuro/ 也会保持一致。
+       */
+      (function () {
+        var STORAGE_KEY = 'brian.lang';
+        var TITLES = {
+          zh: 'Brian · 认知神经科学实验平台',
+          en: 'Brian · Cognitive Neuroscience Platform',
+        };
+
+        function readLang() {
+          try {
+            var stored = window.localStorage.getItem(STORAGE_KEY);
+            if (stored === 'zh' || stored === 'en') return stored;
+          } catch (e) {
+            /* 隐私模式下 localStorage 不可用，回退到浏览器语言 */
+          }
+          var nav = (navigator.language || 'zh').toLowerCase();
+          return nav.indexOf('zh') === 0 ? 'zh' : 'en';
+        }
+
+        function apply(lang) {
+          document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+          document.title = TITLES[lang];
+
+          var nodes = document.querySelectorAll('[data-zh][data-en]');
+          for (var i = 0; i < nodes.length; i += 1) {
+            var node = nodes[i];
+            var value = node.getAttribute(lang === 'zh' ? 'data-zh' : 'data-en');
+            if (value === null) continue;
+            if (node.hasAttribute('data-i18n-html')) node.innerHTML = value;
+            else node.textContent = value;
+          }
+
+          // 按钮显示“目标语言”，与两个子应用的切换控件保持一致
+          var label = document.getElementById('lang-label');
+          if (label) label.textContent = lang === 'zh' ? 'EN' : '中';
+
+          var button = document.getElementById('lang-toggle');
+          if (button) {
+            button.setAttribute(
+              'aria-label',
+              lang === 'zh' ? 'Switch to English' : '切换到中文'
+            );
+            button.setAttribute('title', lang === 'zh' ? 'Switch to English' : '切换到中文');
+          }
+        }
+
+        function store(lang) {
+          try {
+            window.localStorage.setItem(STORAGE_KEY, lang);
+          } catch (e) {
+            /* 存不了也不影响本次切换 */
+          }
+        }
+
+        var current = readLang();
+        apply(current);
+
+        var toggle = document.getElementById('lang-toggle');
+        if (toggle) {
+          toggle.addEventListener('click', function () {
+            current = current === 'zh' ? 'en' : 'zh';
+            store(current);
+            apply(current);
+          });
+        }
+
+        // 在另一个标签页/子应用切换语言时同步过来
+        window.addEventListener('storage', function (event) {
+          if (event.key === STORAGE_KEY && (event.newValue === 'zh' || event.newValue === 'en')) {
+            current = event.newValue;
+            apply(current);
+          }
+        });
+      })();
+    </script>
   </body>
 </html>

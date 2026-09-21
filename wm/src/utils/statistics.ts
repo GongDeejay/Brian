@@ -142,51 +142,80 @@ export function calculateCowanK(
 }
 
 /**
- * Evaluates Working Memory Capacity grade
+ * Qualitative band of a Cowan's K estimate.
+ *
+ * The band ids are stable, machine-readable labels — deliberately NOT the
+ * rendered text. Before this refactor the function returned Chinese
+ * `rating` / `description` strings and the UI had to reverse-map them onto i18n
+ * keys by string comparison (`resolveKEvalKeys`), so editing a single character
+ * of copy silently broke the localized result banner. Callers now switch on the
+ * id and look the copy up under `kEval.<band>.rating` / `.description`.
+ *
+ * The numeric thresholds below are the research criterion and must not change.
  */
-export function evaluateKScore(k: number): {
-  rating: string;
+export type KEvalBand =
+  | 'noData'
+  | 'belowChance'
+  | 'superior'
+  | 'high'
+  | 'normal'
+  | 'needsTraining';
+
+export interface KEval {
+  band: KEvalBand;
+  /**
+   * Measured K, carried so the caller can render it alongside the band copy.
+   * `null` when the input was not a finite number (the `noData` band).
+   */
+  k: number | null;
   badgeColor: string;
-  description: string;
-} {
+}
+
+/**
+ * Evaluates Working Memory Capacity grade.
+ *
+ * Returns the band id and the display colour only; all user-facing copy lives in
+ * the i18n catalogue (`kEval.*`, src/i18n/messages/utils.ts).
+ */
+export function evaluateKScore(k: number): KEval {
   if (!Number.isFinite(k)) {
     return {
-      rating: '数据不足 (No Data)',
+      band: 'noData',
+      k: null,
       badgeColor: 'text-slate-300 bg-slate-900 border-slate-700',
-      description: '本会话没有产生可用的判定数据，无法估计容量上限，建议重新测量。',
     };
   }
   if (k < 0) {
     // Kept as an explicit, honest category: K < 0 means F > H.
     return {
-      rating: '低于随机水平 (Below Chance)',
+      band: 'belowChance',
+      k,
       badgeColor: 'text-rose-400 bg-rose-950/60 border-rose-500/30',
-      description: 'K 为负值，说明虚报率高于命中率，判别表现低于随机猜测水平。常见原因：作答过快、未理解按键含义、或维持期内明显分心。建议仔细阅读指导语后重新测量。',
     };
   }
   if (k >= 3.8) {
     return {
-      rating: '优异 (Superior)',
+      band: 'superior',
+      k,
       badgeColor: 'text-emerald-400 bg-emerald-950/60 border-emerald-500/30',
-      description: '视觉空间工作记忆容量远超成年人常模，多客体并行表征与抗干扰能力极强。',
     };
   } else if (k >= 3.0) {
     return {
-      rating: '良好 (High Normal)',
+      band: 'high',
+      k,
       badgeColor: 'text-sky-400 bg-sky-950/60 border-sky-500/30',
-      description: '符合典型健康成人的认知神经心理学常模水平（约 3~4 个独立客体）。',
     };
   } else if (k >= 2.0) {
     return {
-      rating: '中等 (Normal)',
+      band: 'normal',
+      k,
       badgeColor: 'text-amber-400 bg-amber-950/60 border-amber-500/30',
-      description: '处于基础工作记忆容量区间，建议增加视觉变化检测与干扰抑制的日常训练。',
     };
   } else {
     return {
-      rating: '需提升 (Needs Training)',
+      band: 'needsTraining',
+      k,
       badgeColor: 'text-rose-400 bg-rose-950/60 border-rose-500/30',
-      description: '受瞬时注意力分散或维持期信号衰减影响，可通过渐进式 Set Size 练习增强维持稳定性。',
     };
   }
 }

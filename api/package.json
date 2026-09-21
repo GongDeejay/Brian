@@ -1,0 +1,24 @@
+{
+  "name": "brian-api",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Brian 认知神经科学平台的账号与测评数据服务（研究者 + 受试者双轨）",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "migrate": "node scripts/migrate.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
+    "backup": "node scripts/backup.mjs",
+    "typecheck": "node --check server.js && node --check db/index.js && node --check lib/passwords.js && node --check lib/tokens.js && node --check lib/validate.js && node --check routes/auth.js && node --check routes/sessions.js && node --check routes/subjects.js && node --check routes/privacy.js && node --check routes/research.js",
+    "seed:researcher": "node scripts/seed-researcher.mjs"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.17.4",
+    "express": "^4.21.2"
+  }
+}
