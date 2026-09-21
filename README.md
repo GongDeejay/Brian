@@ -1,13 +1,14 @@
 # Brian 认知神经科学实验平台
 
-两个在浏览器中直接运行的认知神经科学任务平台，部署为静态站点：
+在浏览器中直接运行的认知任务与潜能评估平台，部署为静态站点：
 **<https://brian.mplusm.site>**
 
 | 路径 | 平台 | 内容 |
 | --- | --- | --- |
-| `/` | 站点入口页 | 两个平台的导航与使用须知 |
+| `/` | 站点入口页 | 各平台的导航与使用须知 |
 | `/neuro/` | **NeuroClassify 分类与模式识别** | WCST、ID/ED 定势转移、WPT 概率分类、原型畸变迁移、Gabor RB/II |
 | `/wm/` | **工作记忆训练与评估平台** | N-back、OSPAN 复杂运算跨度、视觉变化检测（Cowan's K）、五维认知画像 |
+| `/talent/` | **优势潜能罗盘 (TalentCompass)** | 隐性优势测评、盖洛普 SIGN 模型、精力审计、360° 镜像视窗、纳瓦尔特定知识与 12 核心原型画像 |
 
 ## ⚠️ 使用须知
 
@@ -29,13 +30,16 @@
 ├── neuro/              # NeuroClassify 分类与模式识别平台
 │   ├── src/
 │   └── vite.config.ts  # base: '/neuro/'
+├── talent/             # 优势潜能罗盘测评平台
+│   ├── src/
+│   └── vite.config.ts  # base: '/talent/'
 ├── deploy/             # 部署资产（nginx 配置、DNS 脚本、说明）
 └── .github/workflows/  # push 即自动构建并发布
 ```
 
 ## 本地开发
 
-需要 **Node.js ≥ 20**（CI 使用 Node 20）。两个平台相互独立，各自安装依赖：
+需要 **Node.js ≥ 20**（CI 使用 Node 20）。各平台相互独立，各自安装依赖：
 
 ```bash
 # 工作记忆平台 → http://localhost:3000
@@ -43,9 +47,12 @@ cd wm && npm install && npm run dev
 
 # NeuroClassify → http://localhost:3001
 cd neuro && npm install && npm run dev
+
+# 优势潜能罗盘 → http://localhost:3002
+cd talent && npm install && npm run dev
 ```
 
-两个平台都**不需要任何环境变量或 API Key**，构建与运行完全在前端完成。
+三个平台都**不需要任何环境变量或 API Key**，构建与运行完全在前端完成。
 （仓库中的 `.env.example` 是 AI Studio 脚手架的遗留物，代码从不读取它。）
 
 ## 构建
