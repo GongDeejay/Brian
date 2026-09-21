@@ -13,14 +13,19 @@ import {
   generateOfflineAnalysis,
   getSavedAssessments,
   saveAssessmentRecord,
+  getEnergyLogs,
+  saveEnergyLogs,
+  getMirrorLogs,
+  saveMirrorLogs,
 } from "./utils/calculator";
-import { ARCHETYPES } from "./data/archetypes";
+import { resolveArchetype } from "./data/englishArchetypes";
 import { useLanguage } from "./context/LanguageContext";
-import { TRANSLATIONS } from "./utils/translations";
+import { useAuth } from "./context/AuthContext";
+import { syncPendingRecords } from "./services/sessionSync";
 
 export default function App() {
   const { lang, isEn } = useLanguage();
-  const t = TRANSLATIONS[lang];
+  const { user, hasConsented } = useAuth();
 
   const [currentTab, setCurrentTab] = useState<NavTab>("quiz");
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -30,62 +35,10 @@ export default function App() {
   const [savedRecords, setSavedRecords] = useState<SavedAssessmentRecord[]>([]);
 
   // Energy tracker logs state
-  const [energyLogs, setEnergyLogs] = useState<EnergyLogItem[]>([
-    {
-      id: "demo-1",
-      timestamp: isEn ? "Yesterday 14:30" : "昨天 14:30",
-      title: isEn
-        ? "Streamlined team cross-functional workflow diagram & built automation pipeline"
-        : "为小组梳理混乱的业务流程图并建立自动化流转模板",
-      type: "flow",
-      category: "work",
-      note: isEn
-        ? "Spent 2 hours in uninterrupted focus; seeing chaotic nodes align into clockwork precision brought profound satisfaction."
-        : "虽然耗费了2小时，但看着杂乱无章的节点变得井井有条，内心极度满足，毫无疲惫感。",
-      energyShift: 3,
-    },
-    {
-      id: "demo-2",
-      timestamp: isEn ? "Yesterday 10:00" : "昨天 10:00",
-      title: isEn
-        ? "Endless bureaucratic cross-department meeting without agenda"
-        : "无休止的跨部门推诿沟通会与机械格式填表",
-      type: "draining",
-      category: "routine",
-      note: isEn
-        ? "Felt drained after just 40 minutes of bureaucratic finger-pointing."
-        : "只开了40分钟就感觉精疲力竭，情绪低落。",
-      energyShift: -2,
-    },
-  ]);
+  const [energyLogs, setEnergyLogs] = useState<EnergyLogItem[]>(() => getEnergyLogs());
 
   // Mirror feedback logs state
-  const [mirrorLogs, setMirrorLogs] = useState<MirrorFeedbackItem[]>([
-    {
-      id: "mirror-1",
-      timestamp: isEn ? "3 days ago" : "3天前",
-      relation: "colleague",
-      relationLabel: isEn ? "Senior Engineering Manager" : "前司高级研发经理",
-      content: isEn
-        ? "Whenever everyone gets confused by complex requirements, you always distill the core causal loop in three clean sketches. When facing architect deadlocks, you're the first person we think of."
-        : "每次大家被复杂需求搞得一头雾水时，你总能用最精简的三张架构草图把底层因果关系讲清楚。大家遇到解不开的架构死结，最先想到的就是找你。",
-      strengthsExtracted: isEn
-        ? ["System Deconstruction", "Structural Synthesis", "First-Principles Logic"]
-        : ["复杂系统解构", "结构化表达", "底层因果推演"],
-    },
-    {
-      id: "mirror-2",
-      timestamp: isEn ? "Last week" : "上周",
-      relation: "friend",
-      relationLabel: isEn ? "College Friend of 8 Years" : "大学同窗好友",
-      content: isEn
-        ? "Your biggest superpower is relentless research curiosity. While others skim second-hand summaries, you dive straight into primary whitepapers and foundational papers until you master the ground truth."
-        : "你身上最大的特质就是对热爱的事物有惊人的研究耐性。别人看一两篇二手文章就放弃了，你非要溯源把原始白皮书和底层原理摸个底朝天。",
-      strengthsExtracted: isEn
-        ? ["Primary Source Mastery", "Deep Focus", "Truth-Seeking"]
-        : ["原典溯源", "长性专注", "透彻钻研"],
-    },
-  ]);
+  const [mirrorLogs, setMirrorLogs] = useState<MirrorFeedbackItem[]>(() => getMirrorLogs());
 
   // Initialize saved records from localStorage
   useEffect(() => {
@@ -99,6 +52,32 @@ export default function App() {
       setAiReport(latest.aiReport ?? null);
     }
   }, []);
+
+  useEffect(() => {
+    saveEnergyLogs(energyLogs);
+  }, [energyLogs]);
+
+  useEffect(() => {
+    saveMirrorLogs(mirrorLogs);
+  }, [mirrorLogs]);
+
+  useEffect(() => {
+    if (!user || !hasConsented) return;
+    void syncPendingRecords(lang, null);
+  }, [user, hasConsented, lang, savedRecords, energyLogs, mirrorLogs]);
+
+  useEffect(() => {
+    if (!aiReport) return;
+    const blob = `${aiReport.executiveSummary}\n${aiReport.goldenQuote ?? ""}`;
+    const hasCjk = /[\u4e00-\u9fff]/.test(blob);
+    if (lang === "en" && hasCjk) {
+      setAiReport(generateOfflineAnalysis(scores, dominant, reflectionAnswers, "en"));
+    } else if (lang === "zh" && !hasCjk) {
+      setAiReport(generateOfflineAnalysis(scores, dominant, reflectionAnswers, "zh"));
+    }
+    // Only rewrite when the interface language changes, not on every score tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   // Compute live scores and archetypes
   const scores = calculateDimensionScores(answers);
@@ -157,7 +136,8 @@ export default function App() {
     const instantReport = generateOfflineAnalysis(
       calculateDimensionScores(demoAnswers),
       "architect",
-      reflectionAnswers
+      reflectionAnswers,
+      lang
     );
     setAiReport(instantReport);
   };
@@ -184,13 +164,13 @@ export default function App() {
         saveCurrentRecord(data.report);
       } else {
         // Fallback offline generator
-        const offlineReport = generateOfflineAnalysis(scores, dominant, reflectionAnswers);
+        const offlineReport = generateOfflineAnalysis(scores, dominant, reflectionAnswers, lang);
         setAiReport(offlineReport);
         saveCurrentRecord(offlineReport);
       }
     } catch {
       // Fallback offline generator
-      const offlineReport = generateOfflineAnalysis(scores, dominant, reflectionAnswers);
+      const offlineReport = generateOfflineAnalysis(scores, dominant, reflectionAnswers, lang);
       setAiReport(offlineReport);
       saveCurrentRecord(offlineReport);
     } finally {
@@ -200,7 +180,7 @@ export default function App() {
 
   // Helper to save current assessment to storage
   const saveCurrentRecord = (report: AIAnalysisReport) => {
-    const dominantProfile = ARCHETYPES[dominant] || ARCHETYPES.architect;
+    const dominantProfile = resolveArchetype(dominant, lang);
     const newRecord: SavedAssessmentRecord = {
       id: `eval_${Date.now()}`,
       date: new Date().toLocaleDateString(lang === "en" ? "en-US" : "zh-CN", {
@@ -223,7 +203,7 @@ export default function App() {
   // Complete assessment quiz -> jump to report
   const handleCompleteQuiz = () => {
     if (!aiReport) {
-      const offline = generateOfflineAnalysis(scores, dominant, reflectionAnswers);
+      const offline = generateOfflineAnalysis(scores, dominant, reflectionAnswers, lang);
       setAiReport(offline);
       saveCurrentRecord(offline);
     }

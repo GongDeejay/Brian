@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   subject_id       INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
   -- 记录当时的受试者编号，即使 subject 行被删除也保留可读性
   subject_code     TEXT,
-  app              TEXT NOT NULL CHECK (app IN ('wm', 'neuro')),
+  app              TEXT NOT NULL CHECK (app IN ('wm', 'neuro', 'talent')),
   task             TEXT NOT NULL,
   started_at       TEXT NOT NULL,
   duration_seconds REAL,

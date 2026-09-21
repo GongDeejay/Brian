@@ -1,6 +1,9 @@
-import { Compass, Sparkles, FileText, Activity, Users, BookOpen, RotateCcw, Languages, Home } from "lucide-react";
+import { Compass, Sparkles, FileText, Activity, Users, BookOpen, RotateCcw, Languages, Home, User } from "lucide-react";
+import { useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { TRANSLATIONS } from "../utils/translations";
+import { useAuth } from "../context/AuthContext";
+import { AccountDialog } from "./AccountDialog";
 
 export type NavTab = "quiz" | "qualitative" | "report" | "energy" | "mirror" | "theories";
 
@@ -19,6 +22,8 @@ export function Navbar({
 }: NavbarProps) {
   const { lang, toggleLang, isEn } = useLanguage();
   const t = TRANSLATIONS[lang];
+  const { user } = useAuth();
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
 
   const tabs: { id: NavTab; label: string; icon: any; badge?: string }[] = [
     { id: "quiz", label: t.nav.quiz, icon: Compass },
@@ -86,6 +91,20 @@ export function Navbar({
             </span>
           </button>
 
+          <button
+            id="btn-account"
+            type="button"
+            onClick={() => setIsAccountOpen(true)}
+            className={`relative ${iconBtn} ${user ? "border-indigo-300 bg-indigo-50 text-indigo-700" : ""}`}
+            title={user ? (isEn ? "Account" : "账号") : isEn ? "Sign in" : "登录"}
+            aria-label={user ? (isEn ? "Account" : "账号") : isEn ? "Sign in" : "登录"}
+          >
+            <User className="h-3.5 w-3.5" aria-hidden="true" />
+            {user && (
+              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+            )}
+          </button>
+
           {hasCompletedQuiz && (
             <button
               onClick={onReset}
@@ -146,6 +165,8 @@ export function Navbar({
           })}
         </nav>
       </div>
+
+      <AccountDialog isOpen={isAccountOpen} onClose={() => setIsAccountOpen(false)} />
     </header>
   );
 }

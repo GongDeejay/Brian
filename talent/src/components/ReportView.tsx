@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { DimensionKey, AIAnalysisReport, SavedAssessmentRecord } from "../types";
 import { DIMENSIONS } from "../data/theories";
-import { ARCHETYPES } from "../data/archetypes";
-import { ENGLISH_ARCHETYPES } from "../data/englishData";
+import { resolveArchetype } from "../data/englishArchetypes";
 import { calculateSIGNMetrics } from "../utils/calculator";
 import { RadarChart } from "./RadarChart";
 import { useLanguage } from "../context/LanguageContext";
@@ -51,24 +50,20 @@ export function ReportView({
   const [copied, setCopied] = useState(false);
   const [selectedDimension, setSelectedDimension] = useState<DimensionKey | null>("naturalEase");
 
-  const dominantRaw = ARCHETYPES[dominantArchetypeId] || ARCHETYPES.architect;
-  const secondaryRaw = ARCHETYPES[secondaryArchetypeId] || ARCHETYPES.architect;
+  const dominantRaw = resolveArchetype(dominantArchetypeId, lang);
+  const secondaryRaw = resolveArchetype(secondaryArchetypeId, lang);
 
-  const englishDom = ENGLISH_ARCHETYPES[dominantArchetypeId];
-  const englishSec = ENGLISH_ARCHETYPES[secondaryArchetypeId];
+  const domTitle = dominantRaw.title;
+  const domSub = dominantRaw.subtitle;
+  const domTagline = dominantRaw.tagline;
+  const domNature = dominantRaw.coreNature;
 
-  // Resolve bilingual archetype attributes
-  const domTitle = isEn && englishDom ? englishDom.title : dominantRaw.title;
-  const domSub = isEn && englishDom ? englishDom.subtitle : dominantRaw.subtitle;
-  const domTagline = isEn && englishDom ? englishDom.tagline : dominantRaw.tagline;
-  const domNature = isEn && englishDom ? englishDom.coreNature : dominantRaw.coreNature;
+  const secTitle = secondaryRaw.title;
 
-  const secTitle = isEn && englishSec ? englishSec.title : secondaryRaw.title;
-
-  const signSuccessDesc = isEn && englishDom ? englishDom.signSignature.success : dominantRaw.signSignature.success;
-  const signInstinctDesc = isEn && englishDom ? englishDom.signSignature.instinct : dominantRaw.signSignature.instinct;
-  const signGrowDesc = isEn && englishDom ? englishDom.signSignature.grow : dominantRaw.signSignature.grow;
-  const signNeedDesc = isEn && englishDom ? englishDom.signSignature.need : dominantRaw.signSignature.need;
+  const signSuccessDesc = dominantRaw.signSignature.success;
+  const signInstinctDesc = dominantRaw.signSignature.instinct;
+  const signGrowDesc = dominantRaw.signSignature.grow;
+  const signNeedDesc = dominantRaw.signSignature.need;
 
   const signMetrics = calculateSIGNMetrics(scores, {});
 
@@ -153,7 +148,7 @@ ${dominantRaw.skillStackingFormula.baseSkill} × ${dominantRaw.skillStackingForm
               </option>
               {savedRecords.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.date} · {r.archetypeTitle}
+                  {r.date} · {resolveArchetype(r.archetypeId, lang).title}
                 </option>
               ))}
             </select>

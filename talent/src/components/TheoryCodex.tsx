@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { THEORY_ARTICLES } from "../data/theories";
+import { ENGLISH_THEORY_ARTICLES } from "../data/englishTheories";
 import { useLanguage } from "../context/LanguageContext";
 import { TRANSLATIONS } from "../utils/translations";
 import { BookOpen, ChevronDown, ChevronUp, Quote } from "lucide-react";
@@ -7,11 +8,12 @@ import { BookOpen, ChevronDown, ChevronUp, Quote } from "lucide-react";
 export function TheoryCodex() {
   const { lang, isEn } = useLanguage();
   const t = TRANSLATIONS[lang];
+  const articles = isEn ? ENGLISH_THEORY_ARTICLES : THEORY_ARTICLES;
 
   const [filter, setFilter] = useState<"all" | "video" | "academic">("all");
-  const [expandedId, setExpandedId] = useState<string | null>(THEORY_ARTICLES[0].id);
+  const [expandedId, setExpandedId] = useState<string | null>(articles[0].id);
 
-  const filteredArticles = THEORY_ARTICLES.filter((a) => {
+  const filteredArticles = articles.filter((a) => {
     if (filter === "all") return true;
     return a.category === filter;
   });
@@ -40,7 +42,7 @@ export function TheoryCodex() {
               filter === "all" ? "bg-slate-900 text-white shadow-xs" : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            {t.theories.filterAll} ({THEORY_ARTICLES.length})
+            {t.theories.filterAll} ({articles.length})
           </button>
           <button
             onClick={() => setFilter("video")}

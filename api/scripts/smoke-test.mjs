@@ -199,6 +199,25 @@ async function main() {
   check('读取到恰好 1 条记录', listed.json?.sessions?.length === 1, `实际 ${listed.json?.sessions?.length}`);
   check('metrics 往返一致', listed.json?.sessions?.[0]?.metrics?.dPrime === 2.1);
 
+  const talentClientId = `smoke_talent_${Date.now()}`;
+  const talentPayload = {
+    sessions: [
+      {
+        clientId: talentClientId,
+        app: 'talent',
+        task: 'assessment',
+        startedAt: new Date().toISOString(),
+        metrics: { archetypeId: 'architect', scores: { naturalEase: 86 } },
+        appVersion: 'smoke',
+        lang: 'en',
+      },
+    ],
+  };
+  const talentUpload = await call('POST', '/sessions', { body: talentPayload, jar });
+  check('天赋罗盘 assessment 上报被接受', talentUpload.status === 200 && talentUpload.json?.acceptedCount === 1, JSON.stringify(talentUpload.json));
+  const listedAfterTalent = await call('GET', '/sessions', { jar });
+  check('读取到含天赋罗盘的 2 条记录', listedAfterTalent.json?.sessions?.length === 2, `实际 ${listedAfterTalent.json?.sessions?.length}`);
+
   const anonUpload = await call('POST', '/sessions', { body: payload });
   check('未登录不能上报', anonUpload.status === 401);
 
@@ -281,7 +300,7 @@ async function main() {
   console.log('\n数据导出与删除权');
   const exported = await call('GET', '/me/export', { jar });
   check('可导出本人全部数据', exported.status === 200 && exported.json?.format === 'brian-export-v1');
-  check('导出内容含测评记录', (exported.json?.sessions?.length ?? 0) === 1);
+  check('导出内容含测评记录', (exported.json?.sessions?.length ?? 0) === 2);
 
   const deleted = await call('DELETE', '/me', { jar });
   check('可删除账号与全部数据', deleted.status === 200 && deleted.json?.ok === true);

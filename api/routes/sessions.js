@@ -21,7 +21,7 @@ import {
 
 export const sessionsRouter = express.Router();
 
-const VALID_APPS = new Set(['wm', 'neuro']);
+const VALID_APPS = new Set(['wm', 'neuro', 'talent']);
 const MAX_TASK_LENGTH = 60;
 
 /** 把受试者编号解析为 subject 行；不存在则按需创建（研究者之外的编号也能用）。 */

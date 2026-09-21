@@ -1,5 +1,12 @@
-import { AIAnalysisReport, DimensionKey, SavedAssessmentRecord } from "../types";
-import { ARCHETYPES } from "../data/archetypes";
+import {
+  AIAnalysisReport,
+  DimensionKey,
+  EnergyLogItem,
+  Language,
+  MirrorFeedbackItem,
+  SavedAssessmentRecord,
+} from "../types";
+import { resolveArchetype } from "../data/englishArchetypes";
 import { ASSESSMENT_QUESTIONS } from "../data/questions";
 
 // Calculate 0-100 scores for each dimension
@@ -102,27 +109,48 @@ export function calculateSIGNMetrics(
 export function generateOfflineAnalysis(
   scores: Record<DimensionKey, number>,
   archetypeId: string,
-  reflectionAnswers: Record<string, string>
+  reflectionAnswers: Record<string, string>,
+  lang: Language = "zh"
 ): AIAnalysisReport {
-  const profile = ARCHETYPES[archetypeId] || ARCHETYPES.architect;
+  const profile = resolveArchetype(archetypeId, lang);
   const sign = calculateSIGNMetrics(scores, {});
+  const en = lang === "en";
+  const domainFallback = en ? "core arena" : "核心赛道";
 
   return {
-    executiveSummary: `基于多维测评与认知心理学模型测算，你的核心专长结构呈现典型的「${profile.title}」特质。你在“${profile.tagline}”方面展现出本能般的直觉优势。你处理该类任务时认知摩擦极小、心流充沛，且外界普遍认可你的成果品质。建议通过能力叠加（Skill Stacking）将核心长板构筑为不可替代的复合型护城河。`,
-    superpowerTitle: `天赋标签：${profile.title} · ${profile.subtitle}`,
+    executiveSummary: en
+      ? `Based on the multi-dimensional assessment and cognitive models, your signature structure is a classic ${profile.title} profile. You show instinctive ease around “${profile.tagline}”. Friction is low, flow is high, and others already recognize the quality of your work. Stack complementary skills to turn this long board into an irreplaceable moat.`
+      : `基于多维测评与认知心理学模型测算，你的核心专长结构呈现典型的「${profile.title}」特质。你在“${profile.tagline}”方面展现出本能般的直觉优势。你处理该类任务时认知摩擦极小、心流充沛，且外界普遍认可你的成果品质。建议通过能力叠加（Skill Stacking）将核心长板构筑为不可替代的复合型护城河。`,
+    superpowerTitle: en
+      ? `Talent label: ${profile.title} · ${profile.subtitle}`
+      : `天赋标签：${profile.title} · ${profile.subtitle}`,
     specificKnowledge: {
       coreDefinition: profile.specificKnowledge,
-      uniqueTraits: [
-        "极低的阻力感：他人视为高难度繁琐事项，你凭直觉轻巧化解",
-        "高能量密度：做完后往往精神亢奋，具备天然的自发持续动力",
-        "稀缺认知透镜：能够用独到的结构或视角快速重组外部混乱局面",
-      ],
+      uniqueTraits: en
+        ? [
+            "Very low friction: what others treat as hard labor, you resolve by intuition",
+            "High energy density: you finish more alive, with self-sustaining drive",
+            "A scarce cognitive lens: you restructure chaotic situations unusually fast",
+          ]
+        : [
+            "极低的阻力感：他人视为高难度繁琐事项，你凭直觉轻巧化解",
+            "高能量密度：做完后往往精神亢奋，具备天然的自发持续动力",
+            "稀缺认知透镜：能够用独到的结构或视角快速重组外部混乱局面",
+          ],
     },
     signAnalysis: {
-      success: `胜任力指数(${sign.success}/100)：${profile.signSignature.success}`,
-      instinct: `渴望指数(${sign.instinct}/100)：${profile.signSignature.instinct}`,
-      grow: `成长指数(${sign.grow}/100)：${profile.signSignature.grow}`,
-      need: `滋养指数(${sign.need}/100)：${profile.signSignature.need}`,
+      success: en
+        ? `Success index (${sign.success}/100): ${profile.signSignature.success}`
+        : `胜任力指数(${sign.success}/100)：${profile.signSignature.success}`,
+      instinct: en
+        ? `Instinct index (${sign.instinct}/100): ${profile.signSignature.instinct}`
+        : `渴望指数(${sign.instinct}/100)：${profile.signSignature.instinct}`,
+      grow: en
+        ? `Grow index (${sign.grow}/100): ${profile.signSignature.grow}`
+        : `成长指数(${sign.grow}/100)：${profile.signSignature.grow}`,
+      need: en
+        ? `Need index (${sign.need}/100): ${profile.signSignature.need}`
+        : `滋养指数(${sign.need}/100)：${profile.signSignature.need}`,
     },
     idealDomains: profile.recommendedDomains.map((d, index) => ({
       domainName: d.title,
@@ -140,21 +168,38 @@ export function generateOfflineAnalysis(
       blindspot: s.pitfall,
       antidote: s.antidote,
     })),
-    actionRoadmap: [
-      {
-        phase: "阶段一（7天）：优势最小验证与精力审计",
-        task: "连续记录3-5天精力日志，彻底辨析哪些日常事务正在吞噬你的精力；主动向2位信任的朋友求证你的盲区特长。",
-      },
-      {
-        phase: "阶段二（30天）：微型闭环交付（MVP）",
-        task: `围绕你擅长的「${profile.recommendedDomains[0]?.title || "核心赛道"}」，以最小可行性方案独立交付一个具象成果并获取真实反馈。`,
-      },
-      {
-        phase: "阶段三（90天）：打造专长护城河与生态",
-        task: `根据技能叠加公式（${profile.skillStackingFormula.baseSkill} + ${profile.skillStackingFormula.amplifier}），在细分赛道建立不可替代的个人专业声誉。`,
-      },
-    ],
-    goldenQuote: `“没有人能在做你自己这件事上与你竞争。”—— 将你的天然优势打磨到极致，世界自会为你让路。`,
+    actionRoadmap: en
+      ? [
+          {
+            phase: "Phase 1 (7 days): minimum strength test & energy audit",
+            task: "Log energy for 3–5 days to see which chores drain you; ask two trusted people to name the strengths you miss in yourself.",
+          },
+          {
+            phase: "Phase 2 (30 days): miniature closed-loop delivery (MVP)",
+            task: `Around your high-fit arena 「${profile.recommendedDomains[0]?.title || domainFallback}」, independently ship a concrete artifact and collect real feedback.`,
+          },
+          {
+            phase: "Phase 3 (90 days): build a specific-knowledge moat",
+            task: `Using the stacking formula (${profile.skillStackingFormula.baseSkill} + ${profile.skillStackingFormula.amplifier}), earn irreplaceable reputation in a narrow lane.`,
+          },
+        ]
+      : [
+          {
+            phase: "阶段一（7天）：优势最小验证与精力审计",
+            task: "连续记录3-5天精力日志，彻底辨析哪些日常事务正在吞噬你的精力；主动向2位信任的朋友求证你的盲区特长。",
+          },
+          {
+            phase: "阶段二（30天）：微型闭环交付（MVP）",
+            task: `围绕你擅长的「${profile.recommendedDomains[0]?.title || domainFallback}」，以最小可行性方案独立交付一个具象成果并获取真实反馈。`,
+          },
+          {
+            phase: "阶段三（90天）：打造专长护城河与生态",
+            task: `根据技能叠加公式（${profile.skillStackingFormula.baseSkill} + ${profile.skillStackingFormula.amplifier}），在细分赛道建立不可替代的个人专业声誉。`,
+          },
+        ],
+    goldenQuote: en
+      ? "“No one can compete with you at being you.” — Polish your natural advantage to the extreme, and the world makes way."
+      : `“没有人能在做你自己这件事上与你竞争。”—— 将你的天然优势打磨到极致，世界自会为你让路。`,
   };
 }
 
@@ -178,5 +223,43 @@ export function saveAssessmentRecord(record: SavedAssessmentRecord) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   } catch (e) {
     console.error("Save assessment record failed:", e);
+  }
+}
+
+const ENERGY_KEY = "talent_compass_energy_v1";
+const MIRROR_KEY = "talent_compass_mirror_v1";
+
+function readJsonArray<T>(key: string): T[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getEnergyLogs(): EnergyLogItem[] {
+  return readJsonArray<EnergyLogItem>(ENERGY_KEY);
+}
+
+export function saveEnergyLogs(items: EnergyLogItem[]) {
+  try {
+    localStorage.setItem(ENERGY_KEY, JSON.stringify(items.slice(0, 50)));
+  } catch (e) {
+    console.error("Save energy logs failed:", e);
+  }
+}
+
+export function getMirrorLogs(): MirrorFeedbackItem[] {
+  return readJsonArray<MirrorFeedbackItem>(MIRROR_KEY);
+}
+
+export function saveMirrorLogs(items: MirrorFeedbackItem[]) {
+  try {
+    localStorage.setItem(MIRROR_KEY, JSON.stringify(items.slice(0, 50)));
+  } catch (e) {
+    console.error("Save mirror logs failed:", e);
   }
 }

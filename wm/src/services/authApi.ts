@@ -40,7 +40,7 @@ export interface ApiUser {
 export interface SyncRecord {
   /** 幂等键：必须稳定，重复上传同一记录不会产生第二条。 */
   clientId: string;
-  app: 'wm' | 'neuro';
+  app: 'wm' | 'neuro' | 'talent';
   task: string;
   /** ISO8601 时间字符串 */
   startedAt: string;

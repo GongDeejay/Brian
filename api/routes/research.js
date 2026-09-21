@@ -12,7 +12,7 @@ import { requireResearcher } from '../lib/auth.js';
 
 export const researchRouter = express.Router();
 
-const VALID_APPS = new Set(['wm', 'neuro']);
+const VALID_APPS = new Set(['wm', 'neuro', 'talent']);
 
 /** 转义 CSV 字段：含分隔符、引号、换行时用双引号包裹并转义内部引号。 */
 function csvCell(value) {

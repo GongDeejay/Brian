@@ -12,7 +12,7 @@ import { config } from '../lib/config.js';
 let client = null;
 
 /** 当前 schema 版本，写入 schema_meta 便于排查线上库结构。 */
-export const SCHEMA_VERSION = '1';
+export const SCHEMA_VERSION = '2';
 
 export function getDb() {
   if (client) return client;
@@ -62,6 +62,7 @@ export async function migrate(schemaPath) {
   const db = getDb();
 
   await db.executeMultiple(sql);
+  await upgradeSessionsAppConstraint(db);
   await db.execute({
     sql: 'INSERT INTO schema_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
     args: ['schema_version', SCHEMA_VERSION],
@@ -70,6 +71,55 @@ export async function migrate(schemaPath) {
   const created = (sql.match(/CREATE\s+TABLE/gi) || []).length;
   const indexed = (sql.match(/CREATE\s+INDEX/gi) || []).length;
   return { tables: created, indexes: indexed };
+}
+
+/**
+ * Existing databases were created with CHECK (app IN ('wm', 'neuro')).
+ * SQLite will not rewrite that on CREATE TABLE IF NOT EXISTS, so rebuild
+ * the table once to admit Talent Compass records.
+ */
+async function upgradeSessionsAppConstraint(db) {
+  const result = await db.execute({
+    sql: "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'sessions'",
+  });
+  const ddl = result.rows[0]?.sql;
+  if (typeof ddl !== 'string' || ddl.includes("'talent'")) return;
+
+  await db.executeMultiple(`
+PRAGMA foreign_keys = OFF;
+CREATE TABLE sessions_v2 (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id        TEXT NOT NULL UNIQUE,
+  user_id          INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  subject_id       INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
+  subject_code     TEXT,
+  app              TEXT NOT NULL CHECK (app IN ('wm', 'neuro', 'talent')),
+  task             TEXT NOT NULL,
+  started_at       TEXT NOT NULL,
+  duration_seconds REAL,
+  load_config_json TEXT,
+  metrics_json     TEXT NOT NULL,
+  app_version      TEXT,
+  lang             TEXT,
+  created_at       TEXT NOT NULL
+);
+INSERT INTO sessions_v2 (
+  id, client_id, user_id, subject_id, subject_code, app, task,
+  started_at, duration_seconds, load_config_json, metrics_json,
+  app_version, lang, created_at
+)
+SELECT
+  id, client_id, user_id, subject_id, subject_code, app, task,
+  started_at, duration_seconds, load_config_json, metrics_json,
+  app_version, lang, created_at
+FROM sessions;
+DROP TABLE sessions;
+ALTER TABLE sessions_v2 RENAME TO sessions;
+CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_subject ON sessions(subject_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_task    ON sessions(app, task, started_at);
+PRAGMA foreign_keys = ON;
+`);
 }
 
 export async function closeDb() {
