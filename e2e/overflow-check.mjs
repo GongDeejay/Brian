@@ -27,12 +27,19 @@ const BASE = process.argv[2] || 'http://127.0.0.1:8099';
 const WIDTHS = [390, 768, 1280, 1600];
 const LANGS = ['zh', 'en'];
 
+const ONLY = (process.env.CHECK_APPS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const TABLES = {
   wm: ['nback', 'ospan', 'change_detection', 'dashboard'],
   neuro: ['wcst', 'wpt', 'ided', 'gabor', 'prototype', 'analytics'],
   talent: ['quiz', 'qualitative', 'report', 'energy', 'mirror', 'theories'],
   plasticity: ['mindmap', 'simulator', 'protocols'],
 };
+
+const APPS = ONLY.length > 0 ? Object.fromEntries(Object.entries(TABLES).filter(([app]) => ONLY.includes(app))) : TABLES;
 
 function tabSelector(app, tab) {
   if (app === 'neuro') return `#task-tab-${tab}`;
@@ -216,7 +223,7 @@ async function checkOne(app, tab, width, lang) {
 
 // 展开成任务列表后按固定并发执行
 const tasks = [];
-for (const [app, tabs] of Object.entries(TABLES)) {
+for (const [app, tabs] of Object.entries(APPS)) {
   for (const width of WIDTHS) {
     for (const lang of LANGS) {
       for (const tab of tabs) tasks.push({ app, tab, width, lang });
