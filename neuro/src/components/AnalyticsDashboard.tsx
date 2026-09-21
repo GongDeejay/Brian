@@ -510,7 +510,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
         {sessions.length === 0 ? (
           <p className="text-xs text-slate-500 py-6 text-center">{t('analytics.history.empty')}</p>
         ) : (
-          <div className="overflow-x-auto max-h-72 overflow-y-auto border border-slate-200 rounded-lg">
+          <div className="relative overflow-x-auto max-h-72 overflow-y-auto border border-slate-200 rounded-lg">
             <table className="w-full text-left text-xs">
               <caption className="sr-only">{t('analytics.history.caption')}</caption>
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">
@@ -528,7 +528,10 @@ export const AnalyticsDashboard: React.FC<Props> = ({ cognitiveLoad, sessions, o
                   <tr key={record.id}>
                     <td className="py-2 px-3 font-mono whitespace-nowrap">{formatTimestamp(record.timestamp)}</td>
                     <td className="py-2 px-3">{t(TASK_LABELS[record.task])}</td>
-                    <td className="py-2 px-3 font-mono">{record.accuracy}%</td>
+                    <td className="py-2 px-3 font-mono">
+                      {/* accuracy 由各引擎以 0–100 存储，不要再乘 100 */}
+                      {record.accuracy === null ? t('session.metric.unavailable') : `${record.accuracy}%`}
+                    </td>
                     <td className="py-2 px-3">
                       <span className="text-slate-500">
                         {record.keyMetricName}

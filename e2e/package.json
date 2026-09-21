@@ -1,0 +1,13 @@
+{
+  "name": "brian-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Brian 站点的浏览器端布局检查（防止 i18n 引发的横向溢出回归）",
+  "scripts": {
+    "check:overflow": "node overflow-check.mjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}

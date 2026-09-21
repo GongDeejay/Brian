@@ -54,6 +54,12 @@ jobs:
           npm run typecheck
           npm run smoke
 
+      # 布局回归检查：英文文案更长，一旦把文档撑得比视口宽，用 mx-auto 居中的
+      # 内容就会整体偏左。这类问题类型检查与构建都发现不了，必须在真实浏览器里量。
+      - name: Install browser-check dependencies
+        working-directory: e2e
+        run: npm ci --no-audit --no-fund
+
       - name: Assemble the site
         run: |
           set -euo pipefail
@@ -73,6 +79,21 @@ jobs:
           EOF
           echo "--- assembled site ---"
           find site -maxdepth 2 -type f | sort | head -50
+
+      # 静态托管组装后的站点，再用系统 Chrome 检查每个「宽度 × 语言 × 页面」组合。
+      - name: Layout regression check (horizontal overflow)
+        run: |
+          set -euo pipefail
+          node e2e/serve.mjs site 8099 &
+          SERVER_PID=$!
+          # 等静态服务器起来
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 2 http://127.0.0.1:8099/ >/dev/null 2>&1; then break; fi
+            sleep 0.5
+          done
+          CHROME_PATH="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser)" \
+            node e2e/overflow-check.mjs http://127.0.0.1:8099
+          kill "$SERVER_PID" 2>/dev/null || true
 
       - name: Configure SSH
         run: |

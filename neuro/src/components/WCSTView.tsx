@@ -825,7 +825,7 @@ export const WCSTView: React.FC<Props> = ({ cognitiveLoad, celebrationEnabled, o
             </span>
           </div>
 
-          <div className="overflow-x-auto max-h-56 overflow-y-auto border border-slate-200 rounded-lg">
+          <div className="relative overflow-x-auto max-h-56 overflow-y-auto border border-slate-200 rounded-lg">
             <table className="w-full text-left text-xs">
               <caption className="sr-only">{t('wcst.table.caption')}</caption>
               <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">

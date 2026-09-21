@@ -274,7 +274,7 @@ export const Header: React.FC<Props> = ({
           <div
             role="tablist"
             aria-label={t('nav.aria')}
-            className="flex space-x-1 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory"
+            className="relative flex space-x-1 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory"
           >
             {taskTabs.map((tab, index) => {
               const isActive = activeTask === tab.id;

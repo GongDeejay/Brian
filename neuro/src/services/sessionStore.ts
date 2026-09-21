@@ -109,7 +109,8 @@ export interface SessionRecordInput {
 }
 
 interface SessionDescription {
-  accuracy: number;
+  /** 记录形状异常时为 null（“未测得”），而不是让页面崩掉。 */
+  accuracy: number | null;
   keyMetricName: string;
   keyMetricValue: string;
 }
@@ -121,7 +122,28 @@ interface SessionDescription {
  * The metric name/value returned here are already rendered in `lang`; they are
  * stored on the record so an export can be read on its own.
  */
+/**
+ * 取某个范式嵌套在 metrics 下的统计对象。
+ *
+ * 历史记录来自浏览器存储，可能是旧 schema 或被外部改写的残档；
+ * 这里做一次运行时收窄，避免一条坏记录把整个看板拖进错误边界。
+ */
+function statsOf<T extends TaskId>(metrics: ParadigmStats, task: T): unknown {
+  if (!metrics || typeof metrics !== 'object') return null;
+  if (metrics.task !== task) return null;
+  const nested = (metrics as unknown as Record<string, unknown>)[task];
+  return nested && typeof nested === 'object' ? nested : null;
+}
+
 export function describeSession(metrics: ParadigmStats, lang: Lang): SessionDescription {
+  // 缺失或形状不对时退化为“未测得”，而不是抛异常。
+  if (!metrics || typeof metrics !== 'object' || !statsOf(metrics, metrics.task as TaskId)) {
+    return {
+      accuracy: null,
+      keyMetricName: translate(lang, 'session.metric.unavailable'),
+      keyMetricValue: '',
+    };
+  }
   switch (metrics.task) {
     case 'wcst': {
       const s = metrics.wcst;
@@ -503,7 +525,13 @@ export function computeProfile(sessions: TestSessionRecord[], lang: Lang): Profi
     const deltas: { task: TaskId; delta: number }[] = [];
     byTask.forEach((entry, task) => {
       if (entry.baseline.length === 0 || entry.loaded.length === 0) return;
-      const mean = (list: TestSessionRecord[]) => list.reduce((acc, r) => acc + r.accuracy, 0) / list.length;
+      // 只统计有有效准确率的记录；一条坏记录不应把整组均值算成 NaN。
+      const usable = (list: TestSessionRecord[]) =>
+        list.filter((r): r is TestSessionRecord & { accuracy: number } => typeof r.accuracy === 'number');
+      const mean = (list: TestSessionRecord[]) => {
+        const rows = usable(list);
+        return rows.length === 0 ? 0 : rows.reduce((acc, r) => acc + r.accuracy, 0) / rows.length;
+      };
       deltas.push({ task, delta: mean(entry.loaded) - mean(entry.baseline) });
     });
 

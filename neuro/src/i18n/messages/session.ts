@@ -33,6 +33,7 @@ export const session = {
     'session.load.separator': ' · ',
 
     // ---- 单次会话头条指标（describeSession） -----------------------------
+    'session.metric.unavailable': '未测得',
     'session.metric.wcst.name': '持续性错误率 (PE Rate)',
     'session.metric.wcst.value': '{rate}%（PE {pe} 次 / 共 {total} 次试验）',
     'session.metric.wpt.name': '最优选择率 (Optimal Rate)',
@@ -159,6 +160,7 @@ export const session = {
     'session.load.separator': ' · ',
 
     // ---- Per-session headline metric -------------------------------------
+    'session.metric.unavailable': 'Not measured',
     'session.metric.wcst.name': 'Perseverative error rate (PE rate)',
     'session.metric.wcst.value': '{rate}% (PE {pe} / {total} trials)',
     'session.metric.wpt.name': 'Optimal choice rate',

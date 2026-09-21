@@ -263,7 +263,8 @@ export interface TestSessionRecord {
   timestamp: string;
   task: TaskId;
   durationSeconds: number;
-  accuracy: number;
+  /** 未能解析出准确率时为 null（历史残档容错）。 */
+  accuracy: number | null;
   loadConfig: CognitiveLoadConfig;
   keyMetricName: string;
   keyMetricValue: string;

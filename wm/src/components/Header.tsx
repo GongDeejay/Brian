@@ -196,7 +196,7 @@ export const Header = ({ activeTab, onSelectTab, isMuted, onToggleMute, onOpenTh
           <div
             role="tablist"
             aria-label={t('nav.aria')}
-            className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1"
+            className="no-scrollbar relative flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1"
           >
             {tabs.map((tab) => {
               const Icon = tab.icon;
